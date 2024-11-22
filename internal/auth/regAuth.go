@@ -8,7 +8,7 @@ import (
 	"github.com/EmptyInsid/db_gui/internal/database"
 )
 
-func RegistrUser(db *database.Database, ctx context.Context, username, password, role string) error {
+func RegistrUser(db database.Service, ctx context.Context, username, password, role string) error {
 	passwordHash, err := HashPassword(password)
 	if err != nil {
 		log.Printf("Error while hash password: %v\n", err)
@@ -23,7 +23,7 @@ func RegistrUser(db *database.Database, ctx context.Context, username, password,
 	return err
 }
 
-func AuthenticateUser(db *database.Database, ctx context.Context, username, password string) (string, string, error) {
+func AuthenticateUser(db database.Service, ctx context.Context, username, password string) (string, string, error) {
 	storedPassword, role, err := db.AuthUser(ctx, username, password)
 	if err != nil {
 		log.Printf("Error while auth user: %v\n", err)

@@ -9,6 +9,8 @@ import (
 )
 
 type Service interface {
+	CloseDB()
+
 	AddArticle(ctx context.Context, name string) error
 	AddOperation(ctx context.Context, articleName string, debit float64, credit float64, date string) error
 
@@ -36,6 +38,9 @@ type Service interface {
 
 	UpdateArticle(ctx context.Context, oldName, newName string) error
 	IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error
+
+	AuthUser(ctx context.Context, username, password string) (string, string, error)
+	RegistrUserDB(ctx context.Context, username, password, role string) error
 }
 
 type Database struct {
