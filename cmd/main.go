@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
-	"github.com/EmptyInsid/db_gui/internal/db"
+	"github.com/EmptyInsid/db_gui/internal/database"
 	"github.com/EmptyInsid/db_gui/internal/utils"
 )
 
@@ -16,13 +17,18 @@ func main() {
 		log.Fatalf("Error connection with bd: %v", err)
 	}
 
-	// Инициализация базы данных
-	db.InitDB(buildConnectionString(config))
+	// Создаем экземпляр структуры Database
+	db := &database.Database{}
+
+	// Инициализация подключения
+	db.Init(buildConnectionString(config))
 	defer db.CloseDB()
 
 	// Проверка подключения
-	ctx := context.Background()
-	if err := db.DB.Ping(ctx); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.Pool().Ping(ctx); err != nil {
 		log.Fatalf("Error connection with bd: %v", err)
 	}
 
@@ -31,17 +37,12 @@ func main() {
 	// 	log.Fatal(err)
 	// }
 
-	if err := db.AddOperation(ctx, "кофейня", 2000, 0, "2024-09-20"); err != nil {
-		db.CloseDB()
-		log.Fatal(err)
-	}
-
 	// инициализация приложения
 	// создание главноего меню\меню входа
 	// запуск приложения
 }
 
-func testQuery(ctx context.Context) error {
+func testQuery(ctx context.Context, db *database.Database) error {
 	if err := db.AddArticle(ctx, "психолог"); err != nil {
 		return err
 	}

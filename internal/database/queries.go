@@ -1,4 +1,4 @@
-package db
+package database
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 )
 
 // выбрать все статьи
-func GetAllArticles(ctx context.Context) ([]models.Article, error) {
-	rows, err := DB.Query(ctx, "SELECT * FROM articles")
+func (db *Database) GetAllArticles(ctx context.Context) ([]models.Article, error) {
+	rows, err := db.pool.Query(ctx, "SELECT * FROM articles")
 	if err != nil {
 		log.Printf("Error while get articles: %v", err)
 		return nil, err
@@ -32,14 +32,14 @@ func GetAllArticles(ctx context.Context) ([]models.Article, error) {
 }
 
 // Вывести наименования всех статей, в рамках которых не проводилось операций за заданный период времени.
-func GetUnusedArticles(ctx context.Context, startData, finishData string) ([]models.Article, error) {
+func (db *Database) GetUnusedArticles(ctx context.Context, startData, finishData string) ([]models.Article, error) {
 
 	query := `
     SELECT DISTINCT id, name FROM articles 
     WHERE id NOT IN (SELECT DISTINCT operations.article_id FROM operations 
     WHERE $1 <= create_date AND create_date < $2)`
 
-	rows, err := DB.Query(ctx, query, startData, finishData)
+	rows, err := db.pool.Query(ctx, query, startData, finishData)
 	if err != nil {
 		log.Printf("Error while get unused articles: %v", err)
 		return nil, err
@@ -61,16 +61,16 @@ func GetUnusedArticles(ctx context.Context, startData, finishData string) ([]mod
 }
 
 // добавить новую статью
-func AddArticle(ctx context.Context, name string) error {
-	_, err := DB.Exec(ctx, "INSERT INTO articles(name) VALUES ($1)", name)
+func (db *Database) AddArticle(ctx context.Context, name string) error {
+	_, err := db.pool.Exec(ctx, "INSERT INTO articles(name) VALUES ($1)", name)
 	return err
 }
 
 // В рамках транзакции поменять заданную статью во всех операциях на другую и удалить ее.
-func UpdateArticle(ctx context.Context, oldName, newName string) error {
+func (db *Database) UpdateArticle(ctx context.Context, oldName, newName string) error {
 	query := `UPDATE articles SET name = $1 WHERE name = $2`
 
-	commandTag, err := DB.Exec(ctx, query, newName, oldName)
+	commandTag, err := db.pool.Exec(ctx, query, newName, oldName)
 	if err != nil {
 		log.Printf("Error failed to update article name: %v", err)
 		return err
@@ -85,8 +85,8 @@ func UpdateArticle(ctx context.Context, oldName, newName string) error {
 }
 
 // Удалить статью и операции, выполненные в ее рамках
-func DeleteArticleAndRecalculateBalances(ctx context.Context, articleName string) error {
-	tx, err := DB.Begin(ctx)
+func (db *Database) DeleteArticleAndRecalculateBalances(ctx context.Context, articleName string) error {
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
 		return err
@@ -95,7 +95,7 @@ func DeleteArticleAndRecalculateBalances(ctx context.Context, articleName string
 
 	query := `SELECT id FROM articles WHERE name = $1;`
 	var articleId int
-	if err := DB.QueryRow(ctx, query, articleName).Scan(&articleId); err != nil {
+	if err := db.pool.QueryRow(ctx, query, articleName).Scan(&articleId); err != nil {
 		log.Printf("Error fetching balance count: %v", err)
 		return err
 	}
@@ -130,8 +130,8 @@ func DeleteArticleAndRecalculateBalances(ctx context.Context, articleName string
 }
 
 // получить все балансы
-func GetAllBalances(ctx context.Context) ([]models.Balance, error) {
-	rows, err := DB.Query(ctx, "SELECT * FROM balance")
+func (db *Database) GetAllBalances(ctx context.Context) ([]models.Balance, error) {
+	rows, err := db.pool.Query(ctx, "SELECT * FROM balance")
 	if err != nil {
 		log.Printf("Error while get balances: %v", err)
 		return nil, err
@@ -158,7 +158,7 @@ func GetAllBalances(ctx context.Context) ([]models.Balance, error) {
 }
 
 // Вывести число балансов, в которых учтены операции, принадлежащие статье с заданным наименованием
-func GetBalanceCountByArticleName(ctx context.Context, articleName string) (int, error) {
+func (db *Database) GetBalanceCountByArticleName(ctx context.Context, articleName string) (int, error) {
 	query := `
 	SELECT COUNT(DISTINCT b.id) AS balance_count
 	FROM balance b
@@ -168,7 +168,7 @@ func GetBalanceCountByArticleName(ctx context.Context, articleName string) (int,
 	`
 
 	var balanceCount int
-	if err := DB.QueryRow(ctx, query, articleName).Scan(&balanceCount); err != nil {
+	if err := db.pool.QueryRow(ctx, query, articleName).Scan(&balanceCount); err != nil {
 		log.Printf("Error fetching balance count: %v", err)
 		return 0, err
 	}
@@ -176,7 +176,7 @@ func GetBalanceCountByArticleName(ctx context.Context, articleName string) (int,
 }
 
 // Вывести сумму расходов по заданной статье, агрегируя по балансам за указанный период
-func GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName string, startDate, finishDate string) (float64, error) {
+func (db *Database) GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName string, startDate, finishDate string) (float64, error) {
 	query := `
 	SELECT SUM(o.credit) AS total_credit
 	FROM operations o
@@ -187,7 +187,7 @@ func GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName string, s
 	`
 
 	var profit float64
-	if err := DB.QueryRow(ctx, query, articleName, startDate, finishDate).Scan(&profit); err != nil {
+	if err := db.pool.QueryRow(ctx, query, articleName, startDate, finishDate).Scan(&profit); err != nil {
 		log.Printf("Error fetching total credit: %v", err)
 		return 0, err
 	}
@@ -195,8 +195,8 @@ func GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName string, s
 }
 
 // Сформировать баланс. Если сумма прибыли меньше некоторой суммы – транзакцию откатить.
-func CreateBalanceIfProfitable(ctx context.Context, startDate, endDate string, minProfit float64) error {
-	tx, err := DB.Begin(ctx)
+func (db *Database) CreateBalanceIfProfitable(ctx context.Context, startDate, endDate string, minProfit float64) error {
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error failed to begin transaction: %v", err)
 		return err
@@ -259,8 +259,8 @@ func CreateBalanceIfProfitable(ctx context.Context, startDate, endDate string, m
 }
 
 // Удалить в рамках транзакции самый убыточный баланс и операции
-func DeleteMostUnprofitableBalance(ctx context.Context) error {
-	tx, err := DB.Begin(ctx)
+func (db *Database) DeleteMostUnprofitableBalance(ctx context.Context) error {
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
 		return err
@@ -290,8 +290,8 @@ func DeleteMostUnprofitableBalance(ctx context.Context) error {
 }
 
 // получить все операции
-func GetAllOperations(ctx context.Context) ([]models.Operation, error) {
-	rows, err := DB.Query(ctx, "SELECT * FROM operations")
+func (db *Database) GetAllOperations(ctx context.Context) ([]models.Operation, error) {
+	rows, err := db.pool.Query(ctx, "SELECT * FROM operations")
 	if err != nil {
 		log.Printf("Error while get operations: %v", err)
 		return nil, err
@@ -319,7 +319,7 @@ func GetAllOperations(ctx context.Context) ([]models.Operation, error) {
 }
 
 // Вывести операции и наименования статей, включая статьи, в рамках которых не проводились операции.
-func GetArticlesWithOperations(ctx context.Context) ([]ArticleWithOperations, error) {
+func (db *Database) GetArticlesWithOperations(ctx context.Context) ([]ArticleWithOperations, error) {
 	query := `
 	SELECT 
 		articles.id AS article_id,
@@ -338,7 +338,7 @@ func GetArticlesWithOperations(ctx context.Context) ([]ArticleWithOperations, er
 		operations.create_date;
 	`
 
-	rows, err := DB.Query(ctx, query)
+	rows, err := db.pool.Query(ctx, query)
 	if err != nil {
 		log.Printf("Error fetching articles with operations: %v", err)
 		return nil, err
@@ -367,7 +367,7 @@ func GetArticlesWithOperations(ctx context.Context) ([]ArticleWithOperations, er
 }
 
 // Посчитать прибыль за заданную дату
-func GetProfitByDate(ctx context.Context, startDate, endDate string) (float64, error) {
+func (db *Database) GetProfitByDate(ctx context.Context, startDate, endDate string) (float64, error) {
 	var totalProfit float64
 
 	query := `
@@ -376,7 +376,7 @@ func GetProfitByDate(ctx context.Context, startDate, endDate string) (float64, e
 	WHERE create_date BETWEEN $1 AND $2
 	`
 
-	err := DB.QueryRow(context.Background(), query, startDate, endDate).Scan(&totalProfit)
+	err := db.pool.QueryRow(context.Background(), query, startDate, endDate).Scan(&totalProfit)
 	if err != nil {
 		log.Printf("Error while get operations: %v", err)
 		return 0, err
@@ -386,7 +386,7 @@ func GetProfitByDate(ctx context.Context, startDate, endDate string) (float64, e
 }
 
 // Добавить операцию в рамках статьи
-func AddOperation(ctx context.Context, articleName string, debit float64, credit float64, date string) error {
+func (db *Database) AddOperation(ctx context.Context, articleName string, debit float64, credit float64, date string) error {
 
 	operationDate, err := time.Parse("2006-01-02", date)
 	if err != nil {
@@ -396,7 +396,7 @@ func AddOperation(ctx context.Context, articleName string, debit float64, credit
 	// Рассчитать последний день месяца для операции
 	lastDayOfMonth := time.Date(operationDate.Year(), operationDate.Month()+1, 0, 0, 0, 0, 0, operationDate.Location())
 
-	tx, err := DB.Begin(ctx)
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error starting transaction: %v\n", err)
 		return err
@@ -422,7 +422,7 @@ func AddOperation(ctx context.Context, articleName string, debit float64, credit
 	((SELECT id FROM articles WHERE articles.name = $1), $2, $3, $4, $5)
 	`
 
-	if _, err := DB.Exec(ctx, queryAddOp, articleName, debit, credit, date, balanceID); err != nil {
+	if _, err := db.pool.Exec(ctx, queryAddOp, articleName, debit, credit, date, balanceID); err != nil {
 		log.Printf("Error insert operation: %v\n", err)
 		return err
 	}
@@ -448,8 +448,8 @@ func AddOperation(ctx context.Context, articleName string, debit float64, credit
 }
 
 // Увеличить сумму расхода операций для статьи, заданной по наименованию
-func IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error {
-	tx, err := DB.Begin(ctx)
+func (db *Database) IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error {
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
 		return err
@@ -506,8 +506,8 @@ func IncreaseExpensesForArticle(ctx context.Context, articleName string, increas
 }
 
 // Создать представление, отображающее все статьи и суммы приход/расход неучтенных операций
-func GetViewUnaccountedOpertions(ctx context.Context) ([]ArticleTotalMoney, error) {
-	rows, err := DB.Query(ctx, "SELECT * FROM unaccounted_operations")
+func (db *Database) GetViewUnaccountedOpertions(ctx context.Context) ([]ArticleTotalMoney, error) {
+	rows, err := db.pool.Query(ctx, "SELECT * FROM unaccounted_operations")
 	if err != nil {
 		log.Printf("Error getting unaccounted_operations: %v", err)
 		return nil, err
@@ -526,8 +526,8 @@ func GetViewUnaccountedOpertions(ctx context.Context) ([]ArticleTotalMoney, erro
 }
 
 // Создать представление, отображающее все балансы и число операций, на основании которых они были сформированы
-func GetViewCountBalanceOper(ctx context.Context) ([]BalanceOperations, error) {
-	rows, err := DB.Query(ctx, "SELECT * FROM balance_operations_count")
+func (db *Database) GetViewCountBalanceOper(ctx context.Context) ([]BalanceOperations, error) {
+	rows, err := db.pool.Query(ctx, "SELECT * FROM balance_operations_count")
 	if err != nil {
 		log.Printf("Error getting balance_operations_count: %v", err)
 		return nil, err
@@ -546,8 +546,8 @@ func GetViewCountBalanceOper(ctx context.Context) ([]BalanceOperations, error) {
 }
 
 // Вызвать хранимую процедуру, выводящую все операции последнего баланса и прибыли по каждой.
-func GetStoreProcLastBalanceOp(ctx context.Context) error {
-	if _, err := DB.Exec(ctx, "CALL get_last_balance_operations()"); err != nil {
+func (db *Database) GetStoreProcLastBalanceOp(ctx context.Context) error {
+	if _, err := db.pool.Exec(ctx, "CALL get_last_balance_operations()"); err != nil {
 		log.Printf("Failed to call get_last_balance_operations procedure: %v", err)
 		return err
 	}
@@ -558,8 +558,8 @@ func GetStoreProcLastBalanceOp(ctx context.Context) error {
 // Создать хранимую процедуру, имеющую два параметра «статья1» и «статья2».
 // Она должна возвращать балансы, операции по «статье1» в которых составили прибыль большую, чем по «статье2».
 // Если в балансе отсутствуют операции по одной из статей – он не рассматривается.
-func GetStoreProcBalanceWithProfit(ctx context.Context, articleFirst, articleSecond string) error {
-	if _, err := DB.Exec(ctx, "CALL get_balances_with_profit_comparison($1, $2)", articleFirst, articleSecond); err != nil {
+func (db *Database) GetStoreProcBalanceWithProfit(ctx context.Context, articleFirst, articleSecond string) error {
+	if _, err := db.pool.Exec(ctx, "CALL get_balances_with_profit_comparison($1, $2)", articleFirst, articleSecond); err != nil {
 		log.Printf("Failed to call get_balances_with_profit_comparison procedure: %v", err)
 		return err
 	}
@@ -568,8 +568,8 @@ func GetStoreProcBalanceWithProfit(ctx context.Context, articleFirst, articleSec
 }
 
 // Создать хранимую процедуру с входным параметром баланс и выходным параметром – статья, операции по которой проведены с наибольшими расходами
-func GetStoreProcArticleMaxExpens(ctx context.Context, balance int, article string) error {
-	if err := DB.QueryRow(ctx, "CALL get_article_with_max_expenses($1, $2)", balance, &article).Scan(&article); err != nil {
+func (db *Database) GetStoreProcArticleMaxExpens(ctx context.Context, balance int, article string) error {
+	if err := db.pool.QueryRow(ctx, "CALL get_article_with_max_expenses($1, $2)", balance, &article).Scan(&article); err != nil {
 		log.Printf("Failed to call get_balances_with_profit_comparison procedure: %v", err)
 		return err
 	}
