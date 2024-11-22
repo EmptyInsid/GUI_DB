@@ -15,7 +15,7 @@ type Operation struct {
 	Debit     float64   `json:"debit"`
 	Credit    float64   `json:"credit"`
 	Date      time.Time `json:"create_date"`
-	BalanceID int       `json:"balance_id"`
+	BalanceID *int      `json:"balance_id"`
 }
 
 // Balance представляет баланс за месяц
