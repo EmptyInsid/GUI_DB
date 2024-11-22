@@ -178,6 +178,7 @@ func testQuery(ctx context.Context, db *database.Database) error {
 		return err
 	}
 	fmt.Println("Succsess update article")
+
 	return nil
 }
 

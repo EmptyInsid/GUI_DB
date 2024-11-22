@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"time"
@@ -575,4 +576,26 @@ func (db *Database) GetStoreProcArticleMaxExpens(ctx context.Context, balance in
 	}
 
 	return nil
+}
+
+// добавление новых пользователей
+func (db *Database) RegistrUserDB(ctx context.Context, username, password, role string) error {
+	if _, err := db.pool.Exec(ctx, "INSERT INTO users(username, password, role) VALUES($1, $2, $3)", username, password, role); err != nil {
+		return err
+	}
+	return nil
+}
+
+// поиск пользователеей в бд
+func (db *Database) AuthUser(ctx context.Context, username, password string) (string, string, error) {
+	var storedPassword, role string
+	if err := db.pool.QueryRow(ctx, "SELECT password, role FROM users WHERE username = $1", username).Scan(&storedPassword, &role); err != nil {
+		if err == sql.ErrNoRows {
+			log.Printf("Error user not found: %v\n", err)
+			return "", "", err
+		}
+		log.Printf("Error select password and role: %v\n", err)
+		return "", "", err
+	}
+	return storedPassword, role, nil
 }
