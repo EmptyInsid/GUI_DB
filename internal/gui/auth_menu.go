@@ -50,7 +50,7 @@ func AuthForm(w fyne.Window, db database.Service) {
 			return
 		}
 
-		MainWindow(w, role)
+		MainWindow(w, db, role)
 	}
 
 	form.CancelText = "Отмена"

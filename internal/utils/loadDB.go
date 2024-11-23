@@ -159,7 +159,7 @@ func testQuery(ctx context.Context, db *database.Database) error {
 	for _, unacOper := range unacOpers {
 		fmt.Printf(
 			"unacOper name: %s\tunacOper totCredit: %f\tunacOper totDebit: %f\n",
-			unacOper.ArticleName, unacOper.TotalCredit, unacOper.TotlaDebit)
+			unacOper.ArticleName, unacOper.TotalCredit, unacOper.TotalDebit)
 	}
 
 	// if err = db.IncreaseExpensesForArticle(ctx, "продукты", 100); err != nil { //это не будет работать, скипай

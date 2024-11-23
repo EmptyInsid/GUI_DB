@@ -11,36 +11,35 @@ import (
 type Service interface {
 	CloseDB()
 
-	AddArticle(ctx context.Context, name string) error
-	AddOperation(ctx context.Context, articleName string, debit float64, credit float64, date string) error
+	AddArticle(ctx context.Context, name string) error                                                      //справочник статей
+	AddOperation(ctx context.Context, articleName string, debit float64, credit float64, date string) error //журнал
 
-	CreateBalanceIfProfitable(ctx context.Context, startDate, endDate string, minProfit float64) error
+	CreateBalanceIfProfitable(ctx context.Context, startDate, endDate string, minProfit float64) error //справочник балансов
 
-	DeleteArticleAndRecalculateBalances(ctx context.Context, articleName string) error
-	DeleteMostUnprofitableBalance(ctx context.Context) error
+	DeleteArticleAndRecalculateBalances(ctx context.Context, articleName string) error //справочник статей
+	DeleteMostUnprofitableBalance(ctx context.Context) error                           //справочник балансов
 
-	GetAllArticles(ctx context.Context) ([]models.Article, error)
-	GetAllBalances(ctx context.Context) ([]models.Balance, error)
-	GetAllOperations(ctx context.Context) ([]models.Operation, error)
+	GetAllArticles(ctx context.Context) ([]models.Article, error)     //справочник статей +
+	GetAllBalances(ctx context.Context) ([]models.Balance, error)     //справочник балансов +
+	GetAllOperations(ctx context.Context) ([]models.Operation, error) //
 
-	GetProfitByDate(ctx context.Context, startDate, endDate string) (float64, error)
-	GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName string, startDate, finishDate string) (float64, error)
+	GetProfitByDate(ctx context.Context, startDate, endDate string) (float64, error)                                         //журнал
+	GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName string, startDate, finishDate string) (float64, error) //журнал
+	GetBalanceCountByArticleName(ctx context.Context, articleName string) (int, error)                                       //журнал
 
-	GetBalanceCountByArticleName(ctx context.Context, articleName string) (int, error)
+	GetUnusedArticles(ctx context.Context, startData, finishData string) ([]models.Article, error) //справочник статей +
+	GetArticlesWithOperations(ctx context.Context) ([]ArticleWithOperations, error)                //журнал +
+	GetViewUnaccountedOpertions(ctx context.Context) ([]ArticleTotalMoney, error)                  //журнал +
+	GetViewCountBalanceOper(ctx context.Context) ([]BalanceOperations, error)                      //справочник балансов
 
-	GetUnusedArticles(ctx context.Context, startData, finishData string) ([]models.Article, error)
-	GetArticlesWithOperations(ctx context.Context) ([]ArticleWithOperations, error)
-	GetViewUnaccountedOpertions(ctx context.Context) ([]ArticleTotalMoney, error)
-	GetViewCountBalanceOper(ctx context.Context) ([]BalanceOperations, error)
+	GetStoreProcLastBalanceOp(ctx context.Context) error                                 //
+	GetStoreProcArticleMaxExpens(ctx context.Context, balance int, article string) error //
 
-	GetStoreProcLastBalanceOp(ctx context.Context) error
-	GetStoreProcArticleMaxExpens(ctx context.Context, balance int, article string) error
+	UpdateArticle(ctx context.Context, oldName, newName string) error                                 //справочник статей
+	IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error //журнал
 
-	UpdateArticle(ctx context.Context, oldName, newName string) error
-	IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error
-
-	AuthUser(ctx context.Context, username, password string) (string, string, error)
-	RegistrUserDB(ctx context.Context, username, password, role string) error
+	AuthUser(ctx context.Context, username, password string) (string, string, error) //вход
+	RegistrUserDB(ctx context.Context, username, password, role string) error        //регистрация
 }
 
 type Database struct {
@@ -58,7 +57,7 @@ type ArticleWithOperations struct {
 
 type ArticleTotalMoney struct {
 	ArticleName string
-	TotlaDebit  float64
+	TotalDebit  float64
 	TotalCredit float64
 }
 

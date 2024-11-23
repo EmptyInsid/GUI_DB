@@ -517,7 +517,7 @@ func (db *Database) GetViewUnaccountedOpertions(ctx context.Context) ([]ArticleT
 	var articalTotals []ArticleTotalMoney
 	for rows.Next() {
 		var articalTotal ArticleTotalMoney
-		if err = rows.Scan(&articalTotal.ArticleName, &articalTotal.TotlaDebit, &articalTotal.TotalCredit); err != nil {
+		if err = rows.Scan(&articalTotal.ArticleName, &articalTotal.TotalDebit, &articalTotal.TotalCredit); err != nil {
 			log.Printf("Errorgetting unaccounted_operation: %v", err)
 			return nil, err
 		}

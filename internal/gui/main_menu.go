@@ -4,45 +4,42 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/widget"
+	"github.com/EmptyInsid/db_gui/internal/database"
 )
 
-func MainWindow(w fyne.Window, role string) {
-	MainMenu(w)
-	TabMenu(w)
+func MainWindow(w fyne.Window, db database.Service, role string) {
+	MainMenu(w, db)
+	emptyArea := container.NewStack()
+	w.SetContent(container.NewBorder(nil, nil, nil, nil, emptyArea))
 }
 
-func MainMenu(w fyne.Window) {
+func MainMenu(w fyne.Window, db database.Service) {
 
 	reportFirst := fyne.NewMenuItem("Отчёт 1", func() {
-		dialog.NewInformation("Создать отчёт 1", "По этой кнопке будет создаваться отчёт первого типа", w)
+		dialog.ShowInformation("Создать отчёт 1", "По этой кнопке будет создаваться отчёт первого типа", w)
 	})
 	reportSecond := fyne.NewMenuItem("Отчёт 2", func() {
-		dialog.NewInformation("Создать отчёт 2", "По этой кнопке будет создаваться отчёт второго типа", w)
+		dialog.ShowInformation("Создать отчёт 2", "По этой кнопке будет создаваться отчёт второго типа", w)
 	})
 	reportMenu := fyne.NewMenu("Отчёт", reportFirst, reportSecond)
-	w.SetMainMenu(fyne.NewMainMenu(reportMenu))
-}
 
-func TabMenu(w fyne.Window) *container.AppTabs {
-
-	btnArticle := widget.NewButton("Статьи", func() {
-		dialog.ShowInformation("Справочник статей", "По этой кнопке будет открываться справочник по статьим расходов", w)
+	jorney := fyne.NewMenuItem("Балансы", func() {
+		jorneyContent, err := MainJorney(w, db)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+		w.SetContent(jorneyContent)
 	})
-	btnOperation := widget.NewButton("Операции", func() {
-		dialog.ShowInformation("Справочник операций", "По этой кнопке будет открываться справочник по операциям", w)
+	jorneyMenu := fyne.NewMenu("Журнал", jorney)
+
+	dir := fyne.NewMenuItem("Справочник", func() {
+		dirContent, err := MainDir(w, db)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+		w.SetContent(dirContent)
 	})
-	btnBalance := widget.NewButton("Балансы", func() {
-		dialog.ShowInformation("Справочник балансов", "По этой кнопке будет открываться справочник по балансам", w)
-	})
+	dirMenu := fyne.NewMenu("Справочник", dir)
 
-	dirButtons := container.NewVBox(btnArticle, btnOperation, btnBalance)
-
-	jorney := container.NewTabItem("Журнал", widget.NewLabel("Главный раздел журнала"))
-	directory := container.NewTabItem("Справочник", dirButtons)
-
-	tab := container.NewAppTabs(jorney, directory)
-
-	w.SetContent(tab)
-	return tab
+	w.SetMainMenu(fyne.NewMainMenu(jorneyMenu, dirMenu, reportMenu))
 }
