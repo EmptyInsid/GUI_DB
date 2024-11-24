@@ -15,7 +15,7 @@ func StartApp(db database.Service) {
 	a.Settings().SetTheme(theme.DarkTheme())
 
 	w := a.NewWindow("Домашний бюджет")
-	w.Resize(fyne.NewSize(500, 500))
+	w.Resize(fyne.NewSize(1000, 500))
 	w.CenterOnScreen()
 
 	gui.LoginMenu(w, db)

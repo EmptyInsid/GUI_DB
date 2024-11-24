@@ -1,6 +1,9 @@
 package gui
 
 import (
+	"context"
+	"strconv"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -17,12 +20,11 @@ func MainDir(w fyne.Window, db database.Service) (*fyne.Container, error) {
 }
 
 func ArticleViewer(w fyne.Window, db database.Service) (*fyne.Container, error) {
-	editor, err := AccordionDir(w)
+	table, err := ArticleTable(db)
 	if err != nil {
 		return nil, err
 	}
-
-	table, err := ArticleTable(db)
+	editor, err := AccordionDirArticle(w, db, table)
 	if err != nil {
 		return nil, err
 	}
@@ -31,12 +33,11 @@ func ArticleViewer(w fyne.Window, db database.Service) (*fyne.Container, error) 
 }
 
 func OperationsViewer(w fyne.Window, db database.Service) (*fyne.Container, error) {
-	editor, err := AccordionDir(w)
+	table, err := OperationsTable(db)
 	if err != nil {
 		return nil, err
 	}
-
-	table, err := OperationsTable(db)
+	editor, err := AccordionDirOper(w, db, table)
 	if err != nil {
 		return nil, err
 	}
@@ -64,21 +65,274 @@ func TabsDir(w fyne.Window, db database.Service) (*container.AppTabs, error) {
 	return tab, nil
 }
 
-func AccordionDir(w fyne.Window) (*widget.Accordion, error) {
-	btnsAdd := widget.NewButton("Добавить", func() {
-		dialog.ShowInformation("Редактировать журнал", "Здесь можно будет редактирвоать журнал", w)
-	})
-	btnsDel := widget.NewButton("Удалить", func() {
-		dialog.ShowInformation("Редактировать журнал", "Здесь можно будет редактирвоать журнал", w)
-	})
-	btnsEdit := widget.NewButton("Редактировать", func() {
-		dialog.ShowInformation("Редактировать журнал", "Здесь можно будет редактирвоать журнал", w)
-	})
+// СПИСОК ДЕЙСТВИЙ ДЛЯ СТАТЕЙ
+func AccordionDirArticle(w fyne.Window, db database.Service, table *widget.Table) (*widget.Accordion, error) {
+	accAdd := AddArticle(w, db, table)
+	accEdit := EditArticle(w, db, table)
+	accDel := DelArticle(w, db, table)
 
 	editor := widget.NewAccordion(
-		widget.NewAccordionItem("Добавить", btnsAdd),
-		widget.NewAccordionItem("Удалить", btnsDel),
-		widget.NewAccordionItem("Редактировать", btnsEdit),
+		widget.NewAccordionItem("Добавить", accAdd),
+		widget.NewAccordionItem("Редактировать", accEdit),
+		widget.NewAccordionItem("Удалить", accDel),
 	)
 	return editor, nil
+}
+
+// РАЗДЕЛ ДОБАВИТЬ СТАТЬЮ
+func AddArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	winAddArticle := WinAddArticle(w, db, table)
+	return container.NewVBox(winAddArticle)
+}
+func WinAddArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	ctx := context.Background()
+
+	article := widget.NewEntry()
+	article.SetPlaceHolder("статья")
+
+	btn := widget.NewButton("Добавить статью", func() {
+
+		err := db.AddArticle(ctx, article.Text)
+		if err != nil {
+			dialog.ShowError(err, w)
+		} else {
+			dialog.ShowInformation("Добавить статью", "Новая статья успешно добавлена!", w)
+		}
+
+		err = UpdateArticleTable(db, table)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+	})
+
+	return container.NewVBox(article, btn)
+}
+
+// РАЗДЕЛ РЕДАКТИРОВАТЬ СТАТЬЮ
+func EditArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	winEditArticle := WinEditArticle(w, db, table)
+	return container.NewVBox(winEditArticle)
+}
+func WinEditArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	ctx := context.Background()
+
+	oldName := widget.NewEntry()
+	newName := widget.NewEntry()
+	oldName.SetPlaceHolder("старое имя")
+	newName.SetPlaceHolder("новое имя")
+	fieldsCont := container.NewStack(container.NewAdaptiveGrid(2, oldName, newName))
+
+	btn := widget.NewButton("Изменить имя", func() {
+
+		err := db.UpdateArticle(ctx, oldName.Text, newName.Text)
+		if err != nil {
+			dialog.ShowError(err, w)
+		} else {
+			dialog.ShowInformation("Изменить имя", "Название статьи успешно изменено!", w)
+		}
+		err = UpdateArticleTable(db, table)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+	})
+
+	return container.NewVBox(fieldsCont, btn)
+}
+
+// РАЗДЕЛ УДАЛЕНИЯ СТАТЬИ
+func DelArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	winDelArticle := WinDelArticle(w, db, table)
+	return container.NewVBox(winDelArticle)
+}
+func WinDelArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	ctx := context.Background()
+
+	article := widget.NewEntry()
+	article.SetPlaceHolder("статья")
+
+	btn := widget.NewButton("Удалить статью", func() {
+
+		err := db.DeleteArticleAndRecalculateBalances(ctx, article.Text)
+		if err != nil {
+			dialog.ShowError(err, w)
+		} else {
+			dialog.ShowInformation("Удалить статью", "Сатья успешно удалена!", w)
+		}
+		err = UpdateArticleTable(db, table)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+	})
+
+	return container.NewVBox(article, btn)
+}
+
+// СПИСОК ДЕЙСТВИЙ ДЛЯ ОПЕРАЦИЙ
+func AccordionDirOper(w fyne.Window, db database.Service, table *widget.Table) (*widget.Accordion, error) {
+	accAdd := AddOperation(w, db, table)
+	accEdit := EditOperation(w, db, table)
+	accDel := DelOperation(w, db, table)
+
+	editor := widget.NewAccordion(
+		widget.NewAccordionItem("Добавить", accAdd),
+		widget.NewAccordionItem("Редактировать", accEdit),
+		widget.NewAccordionItem("Удалить", accDel),
+	)
+	return editor, nil
+}
+
+// РАЗДЕЛ ДОБАВИТЬ ОПЕРАЦИЮ
+func AddOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	winAddOperation := WinAddOperation(w, db, table)
+	return container.NewVBox(winAddOperation)
+}
+func WinAddOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	ctx := context.Background()
+
+	article := widget.NewEntry()
+	date := widget.NewEntry()
+	debit := widget.NewEntry()
+	credit := widget.NewEntry()
+
+	article.SetPlaceHolder("статья")
+	date.SetPlaceHolder("дата")
+	debit.SetPlaceHolder("доход")
+	credit.SetPlaceHolder("расход")
+
+	сont := container.NewStack(container.NewAdaptiveGrid(2, article, date, debit, credit))
+
+	btn := widget.NewButton("Добавить операцию", func() {
+
+		floatDebit, err := strconv.ParseFloat(debit.Text, 64)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+		floatCredit, err := strconv.ParseFloat(credit.Text, 64)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+		err = db.AddOperation(ctx, article.Text, floatDebit, floatCredit, date.Text)
+		if err != nil {
+			dialog.ShowError(err, w)
+		} else {
+			dialog.ShowInformation("Добавить операцию", "Новая операция успешно добавлена!", w)
+		}
+
+		err = UpdateOperationTable(db, table)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+	})
+
+	return container.NewVBox(сont, btn)
+}
+
+// РАЗДЕЛ РЕДАКТИРОВАТЬ ОПЕРАЦИЮ
+func EditOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	winEditOperation := WinEditOperation(w, db, table)
+	return container.NewVBox(winEditOperation)
+}
+func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	ctx := context.Background()
+
+	article := widget.NewEntry()
+	date := widget.NewEntry()
+	debit := widget.NewEntry()
+	credit := widget.NewEntry()
+
+	article.SetPlaceHolder("статья")
+	date.SetPlaceHolder("дата")
+	debit.SetPlaceHolder("доход")
+	credit.SetPlaceHolder("расход")
+
+	сont := container.NewStack(container.NewAdaptiveGrid(2, article, date, debit, credit))
+
+	btn := widget.NewButton("Изменить операцию", func() {
+
+		floatDebit, err := strconv.ParseFloat(debit.Text, 64)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+		floatCredit, err := strconv.ParseFloat(credit.Text, 64)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+		err = db.AddOperation(ctx, article.Text, floatDebit, floatCredit, date.Text)
+		if err != nil {
+			dialog.ShowError(err, w)
+		} else {
+			dialog.ShowInformation("Изменить операцию", "Операция успешно изменена!", w)
+		}
+
+		err = UpdateOperationTable(db, table)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+	})
+
+	return container.NewVBox(сont, btn)
+}
+func WinIncreaseOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	ctx := context.Background()
+
+	article := widget.NewEntry()
+	amount := widget.NewEntry()
+	article.SetPlaceHolder("название статьи")
+	amount.SetPlaceHolder("сумма повышения")
+	сont := container.NewStack(container.NewAdaptiveGrid(1, article, amount))
+
+	btn := widget.NewButton("Повысить расходы по статье", func() {
+
+		floatAmount, err := strconv.ParseFloat(amount.Text, 64)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+		err = db.IncreaseExpensesForArticle(ctx, article.Text, floatAmount)
+		if err != nil {
+			dialog.ShowError(err, w)
+		} else {
+			dialog.ShowInformation("Повысить расходы по статье", "Расход по статье успешно изменён!", w)
+		}
+		err = UpdateOperationTable(db, table)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+	})
+
+	return container.NewVBox(сont, btn)
+}
+
+// РАЗДЕЛ УДАЛЕНИЯ ОПЕРАЦИЮ
+func DelOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	winDelOperation := WinDelOperation(w, db, table)
+	return container.NewVBox(winDelOperation)
+}
+func WinDelOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	//ctx := context.Background()
+
+	article := widget.NewEntry()
+	article.SetPlaceHolder("id операции")
+
+	btn := widget.NewButton("Удалить операцию", func() {
+
+		dialog.ShowInformation("Удалить операцию", "зачем оно тебе?", w)
+		err := UpdateOperationTable(db, table)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+	})
+
+	return container.NewVBox(article, btn)
 }

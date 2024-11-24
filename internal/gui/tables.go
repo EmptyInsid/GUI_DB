@@ -290,3 +290,126 @@ func CountBalanceOperTable(db database.Service, startData string, finishData str
 
 	return table, nil
 }
+
+func UpdateArticleTable(db database.Service, table *widget.Table) error {
+	ctx := context.Background()
+
+	data, err := db.GetAllArticles(ctx)
+	if err != nil {
+		return err
+	}
+
+	header := []string{"Номер", "Статья"}
+
+	// Обновляем таблицу
+	table.Length = func() (int, int) {
+		return len(data) + 1, len(header)
+	}
+	table.UpdateCell = func(i widget.TableCellID, o fyne.CanvasObject) {
+		label := o.(*widget.Label)
+		col, row := i.Col, i.Row
+
+		if row == 0 {
+			label.SetText(header[col])
+		} else {
+			if col == 0 {
+				label.SetText(fmt.Sprint(row))
+			} else if col == 1 {
+				label.SetText(data[row-1].Name)
+			}
+		}
+	}
+
+	table.Refresh() // Обновляем представление
+	return nil
+}
+
+func UpdateBalanceTable(db database.Service, table *widget.Table) error {
+	ctx := context.Background()
+
+	data, err := db.GetAllBalances(ctx)
+	if err != nil {
+		return err
+	}
+
+	header := []string{"Номер", "Дата", "Доход", "Расход", "Итог"}
+
+	// Обновляем таблицу
+	table.Length = func() (int, int) {
+		return len(data) + 1, len(header)
+	}
+	table.UpdateCell = func(i widget.TableCellID, o fyne.CanvasObject) {
+		lable := o.(*widget.Label)
+		col, row := i.Col, i.Row
+
+		if row == 0 {
+			lable.SetText(header[col])
+		} else {
+			switch col {
+			case 0:
+				lable.SetText(fmt.Sprint(row))
+			case 1:
+				lable.SetText(fmt.Sprint(data[row-1].Date.Format("2006-01-02")))
+			case 2:
+				lable.SetText(fmt.Sprint(data[row-1].Debit))
+			case 3:
+				lable.SetText(fmt.Sprint(data[row-1].Credit))
+			case 4:
+				lable.SetText(fmt.Sprint(data[row-1].Amount))
+			default:
+				lable.SetText("-")
+			}
+
+		}
+	}
+
+	table.Refresh()
+	return nil
+}
+
+func UpdateOperationTable(db database.Service, table *widget.Table) error {
+	ctx := context.Background()
+
+	data, err := db.GetArticlesWithOperations(ctx)
+	if err != nil {
+		return err
+	}
+
+	header := []string{"Номер", "Id", "Статья", "Доход", "Расход", "Дата"}
+
+	// Обновляем таблицу
+	table.Length = func() (int, int) {
+		return len(data) + 1, len(header)
+	}
+	table.UpdateCell = func(i widget.TableCellID, o fyne.CanvasObject) {
+		lable := o.(*widget.Label)
+		col, row := i.Col, i.Row
+
+		if row == 0 {
+			//lable.Alignment = fyne.TextAlignCenter
+			//lable.TextStyle = fyne.TextStyle{Bold: true}
+			lable.SetText(header[col])
+		} else {
+			switch col {
+			case 0:
+				lable.SetText(fmt.Sprint(row))
+			case 1:
+				lable.SetText(fmt.Sprint(data[row-1].OperationID))
+			case 2:
+				lable.SetText(fmt.Sprint(data[row-1].ArticleName))
+			case 3:
+				lable.SetText(fmt.Sprint(data[row-1].Debit))
+			case 4:
+				lable.SetText(fmt.Sprint(data[row-1].Credit))
+			case 5:
+				lable.SetText(fmt.Sprint(data[row-1].CreateDate.Format("2006-01-02")))
+			default:
+				lable.SetText("-")
+			}
+
+		}
+	}
+
+	table.Refresh() // Обновляем представление
+	return nil
+}
