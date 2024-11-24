@@ -130,9 +130,9 @@ func WinBalanceCount(w fyne.Window, db database.Service) *fyne.Container {
 func EditAccord(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	winCreateBalance := WinCreateNewBalance(w, db, table)
 	winDelUnprof := WinDeleteUnprofitBalance(w, db, table)
-	//winDelBydate()
+	winDelBalance := WinDelBalance(w, db, table)
 
-	return container.NewVBox(winCreateBalance, canvas.NewLine(color.Black), winDelUnprof)
+	return container.NewVBox(winCreateBalance, canvas.NewLine(color.White), winDelBalance, canvas.NewLine(color.White), winDelUnprof)
 }
 func WinCreateNewBalance(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
@@ -158,10 +158,38 @@ func WinCreateNewBalance(w fyne.Window, db database.Service, table *widget.Table
 		} else {
 			dialog.ShowInformation("Создать баланс", "Новый баланс создан успешно!", w)
 		}
-		UpdateBalanceTable(db, table)
+		if err := UpdateBalanceTable(db, table); err != nil {
+			dialog.ShowError(err, w)
+		}
 	})
 
 	return container.NewVBox(periodCont, btnArtOp)
+}
+func WinDelBalance(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
+	ctx := context.Background()
+
+	date := widget.NewEntry()
+	date.SetPlaceHolder("дата баланса")
+
+	btn := widget.NewButton("Удалить баланс", func() {
+
+		dialog.ShowConfirm(
+			"Удалить баланс",
+			"Вы уверены, что хотите удалить баланс?",
+			func(bool) {
+				err := db.DeleteBalance(ctx, date.Text)
+				if err != nil {
+					dialog.ShowError(err, w)
+				}
+				if err := UpdateBalanceTable(db, table); err != nil {
+					dialog.ShowError(err, w)
+				}
+			},
+			w)
+
+	})
+
+	return container.NewVBox(date, btn)
 }
 func WinDeleteUnprofitBalance(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
@@ -176,7 +204,9 @@ func WinDeleteUnprofitBalance(w fyne.Window, db database.Service, table *widget.
 				if err != nil {
 					dialog.ShowError(err, w)
 				}
-				UpdateBalanceTable(db, table)
+				if err := UpdateBalanceTable(db, table); err != nil {
+					dialog.ShowError(err, w)
+				}
 			},
 			w)
 

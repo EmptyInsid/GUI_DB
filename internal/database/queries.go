@@ -166,12 +166,17 @@ func (db *Database) GetTotalCreditByArticleAndPeriod(ctx context.Context, articl
 	  AND b.create_date BETWEEN $2 AND $3;
 	`
 
-	var profit float64
+	var profit *float64
+
 	if err := db.pool.QueryRow(ctx, query, articleName, startDate, finishDate).Scan(&profit); err != nil {
 		log.Printf("Error fetching total credit: %v", err)
 		return 0, err
 	}
-	return profit, nil
+	if profit != nil {
+		return *profit, nil
+	} else {
+		return 0, nil
+	}
 }
 
 // Сформировать баланс. Если сумма прибыли меньше некоторой суммы – транзакцию откатить.
@@ -583,6 +588,26 @@ func (db *Database) DeleteOperation(ctx context.Context, id int) error {
 	_, err = tx.Exec(ctx, query, id)
 	if err != nil {
 		log.Printf("Error deleting operation %v", err)
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
+		return err
+	}
+	return nil
+}
+
+func (db *Database) DeleteBalance(ctx context.Context, date string) error {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return err
+	}
+
+	query := `DELETE FROM balance WHERE create_date = $1`
+	_, err = tx.Exec(ctx, query, date)
+	if err != nil {
+		log.Printf("Error deleting balance %v", err)
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

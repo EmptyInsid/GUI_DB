@@ -18,6 +18,7 @@ type Service interface {
 
 	DeleteArticle(ctx context.Context, articleName string) error //справочник статей +
 	DeleteOperation(ctx context.Context, id int) error           //справочник операций +
+	DeleteBalance(ctx context.Context, date string) error        //журнал +
 	DeleteMostUnprofitableBalance(ctx context.Context) error     //журнал +
 
 	GetAllArticles(ctx context.Context) ([]models.Article, error)     //справочник статей +
