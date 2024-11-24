@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/EmptyInsid/db_gui/internal/models"
 )
@@ -86,33 +85,13 @@ func (db *Database) UpdateArticle(ctx context.Context, oldName, newName string) 
 }
 
 // Удалить статью и операции, выполненные в ее рамках
-func (db *Database) DeleteArticleAndRecalculateBalances(ctx context.Context, articleName string) error {
+func (db *Database) DeleteArticle(ctx context.Context, articleName string) error {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
 		return err
 	}
 	defer tx.Rollback(ctx)
-
-	query := `SELECT id FROM articles WHERE name = $1;`
-	var articleId int
-	if err := db.pool.QueryRow(ctx, query, articleName).Scan(&articleId); err != nil {
-		log.Printf("Error fetching balance count: %v", err)
-		return err
-	}
-
-	// Recalculate balances
-	updateBalancesQuery := `
-	UPDATE balance
-	SET debit = COALESCE((SELECT SUM(o.debit) FROM operations o WHERE o.balance_id = balance.id AND o.article_id != $1), 0),
-		credit = COALESCE((SELECT SUM(o.credit) FROM operations o WHERE o.balance_id = balance.id AND o.article_id != $1), 0),
-		amount = COALESCE((SELECT SUM(o.debit - o.credit) FROM operations o WHERE o.balance_id = balance.id AND o.article_id != $1), 0);
-	`
-	_, err = tx.Exec(ctx, updateBalancesQuery, articleId)
-	if err != nil {
-		log.Printf("Error updating balances %v", err)
-		return err
-	}
 
 	// Delete the article
 	deleteArticleQuery := `DELETE FROM articles WHERE name = $1;`
@@ -389,60 +368,15 @@ func (db *Database) GetProfitByDate(ctx context.Context, startDate, endDate stri
 // Добавить операцию в рамках статьи
 func (db *Database) AddOperation(ctx context.Context, articleName string, debit float64, credit float64, date string) error {
 
-	operationDate, err := time.Parse("2006-01-02", date)
-	if err != nil {
-		return fmt.Errorf("invalid date format: %w", err)
-	}
-
-	// Рассчитать последний день месяца для операции
-	lastDayOfMonth := time.Date(operationDate.Year(), operationDate.Month()+1, 0, 0, 0, 0, 0, operationDate.Location())
-
-	tx, err := db.pool.Begin(ctx)
-	if err != nil {
-		log.Printf("Error starting transaction: %v\n", err)
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	// Найти баланс
-	var balanceID *int
-	selectBalanceQuery := `
-		SELECT id FROM balance
-		WHERE create_date = $1
-		LIMIT 1`
-	err = tx.QueryRow(ctx, selectBalanceQuery, lastDayOfMonth).Scan(&balanceID)
-	if err != nil {
-		// Если баланса нет, просто пропускаем присвоение balance_id
-		log.Printf("No balance found for the operation date: %s. Balance ID will be NULL.", operationDate.Format("2006-01-02"))
-		balanceID = nil
-	}
-
 	// Вставить операцию
 	queryAddOp := `
 	INSERT INTO operations(article_id, debit, credit, create_date, balance_id) VALUES
-	((SELECT id FROM articles WHERE articles.name = $1), $2, $3, $4, $5)
+	((SELECT id FROM articles WHERE articles.name = $1), $2, $3, $4, NULL)
 	`
 
-	if _, err := db.pool.Exec(ctx, queryAddOp, articleName, debit, credit, date, balanceID); err != nil {
+	if _, err := db.pool.Exec(ctx, queryAddOp, articleName, debit, credit, date); err != nil {
 		log.Printf("Error insert operation: %v\n", err)
 		return err
-	}
-
-	if balanceID != nil {
-		// Recalculate balances
-		updateBalancesQuery := `
-		UPDATE balance
-		SET debit = COALESCE((SELECT SUM(o.debit) FROM operations o WHERE o.balance_id = balance.id), 0),
-			credit = COALESCE((SELECT SUM(o.credit) FROM operations o WHERE o.balance_id = balance.id), 0),
-			amount = COALESCE((SELECT SUM(o.debit - o.credit) FROM operations o WHERE o.balance_id = balance.id), 0)
-		WHERE balance.id = $1;
-		`
-		_, err = tx.Exec(ctx, updateBalancesQuery, balanceID)
-		if err != nil {
-			log.Printf("Error updating balances %v", err)
-			return err
-		}
-
 	}
 
 	return nil
@@ -598,4 +532,62 @@ func (db *Database) AuthUser(ctx context.Context, username, password string) (st
 		return "", "", err
 	}
 	return storedPassword, role, nil
+}
+
+func (db *Database) UpdateOpertions(ctx context.Context, id int, articleName string, debit float64, credit float64, date string) error {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return err
+	}
+	defer tx.Rollback(context.Background())
+
+	query := `
+	UPDATE operations 
+	SET 
+		article_id = (SELECT DISTINCT id FROM articles WHERE articles.name = $1),
+		debit = $2,
+		credit = $3,
+		create_date = $4
+	WHERE id = $5
+	`
+
+	commandTag, err := db.pool.Exec(ctx, query, articleName, debit, credit, date, id)
+
+	if err != nil {
+		log.Printf("Error failed to update operation name: %v", err)
+		return err
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		log.Printf("Error no operation found with id: %d", id)
+		return fmt.Errorf("error no operation found with id: %d", id)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
+		return err
+	}
+
+	return nil
+}
+
+func (db *Database) DeleteOperation(ctx context.Context, id int) error {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return err
+	}
+
+	query := `DELETE FROM operations WHERE id = $1`
+	_, err = tx.Exec(ctx, query, id)
+	if err != nil {
+		log.Printf("Error deleting operation %v", err)
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
+		return err
+	}
+	return nil
 }

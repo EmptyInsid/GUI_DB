@@ -16,8 +16,9 @@ type Service interface {
 
 	CreateBalanceIfProfitable(ctx context.Context, startDate, endDate string, minProfit float64) error //журнал +
 
-	DeleteArticleAndRecalculateBalances(ctx context.Context, articleName string) error //справочник статей +
-	DeleteMostUnprofitableBalance(ctx context.Context) error                           //журнал +
+	DeleteArticle(ctx context.Context, articleName string) error //справочник статей +
+	DeleteOperation(ctx context.Context, id int) error           //справочник операций +
+	DeleteMostUnprofitableBalance(ctx context.Context) error     //журнал +
 
 	GetAllArticles(ctx context.Context) ([]models.Article, error)     //справочник статей +
 	GetAllBalances(ctx context.Context) ([]models.Balance, error)     //журнал +
@@ -35,8 +36,9 @@ type Service interface {
 	GetStoreProcLastBalanceOp(ctx context.Context) error                                 //
 	GetStoreProcArticleMaxExpens(ctx context.Context, balance int, article string) error //
 
-	UpdateArticle(ctx context.Context, oldName, newName string) error                                 //справочник статей +
-	IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error //справочник операций +
+	UpdateArticle(ctx context.Context, oldName, newName string) error                                                  //справочник статей +
+	UpdateOpertions(ctx context.Context, id int, articleName string, debit float64, credit float64, date string) error //справочник операций +
+	IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error                  //справочник операций +
 
 	AuthUser(ctx context.Context, username, password string) (string, string, error) //вход +
 	RegistrUserDB(ctx context.Context, username, password, role string) error        //регистрация -

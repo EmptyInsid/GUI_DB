@@ -47,7 +47,7 @@ func testQuery(ctx context.Context, db *database.Database) error {
 		return err
 	}
 	fmt.Println("Succsess create balance")
-	if err := db.DeleteArticleAndRecalculateBalances(ctx, "транспорт"); err != nil {
+	if err := db.DeleteArticle(ctx, "транспорт"); err != nil {
 		return err
 	}
 	fmt.Println("Succsess delete article")

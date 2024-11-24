@@ -154,7 +154,7 @@ func WinDelArticle(w fyne.Window, db database.Service, table *widget.Table) *fyn
 
 	btn := widget.NewButton("Удалить статью", func() {
 
-		err := db.DeleteArticleAndRecalculateBalances(ctx, article.Text)
+		err := db.DeleteArticle(ctx, article.Text)
 		if err != nil {
 			dialog.ShowError(err, w)
 		} else {
@@ -236,16 +236,19 @@ func WinAddOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 // РАЗДЕЛ РЕДАКТИРОВАТЬ ОПЕРАЦИЮ
 func EditOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	winEditOperation := WinEditOperation(w, db, table)
-	return container.NewVBox(winEditOperation)
+	winIncOperation := WinIncreaseOperation(w, db, table)
+	return container.NewVBox(winEditOperation, winIncOperation)
 }
 func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
 
+	id := widget.NewEntry()
 	article := widget.NewEntry()
 	date := widget.NewEntry()
 	debit := widget.NewEntry()
 	credit := widget.NewEntry()
 
+	id.SetPlaceHolder("id")
 	article.SetPlaceHolder("статья")
 	date.SetPlaceHolder("дата")
 	debit.SetPlaceHolder("доход")
@@ -254,6 +257,11 @@ func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *
 	сont := container.NewStack(container.NewAdaptiveGrid(2, article, date, debit, credit))
 
 	btn := widget.NewButton("Изменить операцию", func() {
+
+		intId, err := strconv.ParseInt(id.Text, 0, 0)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
 
 		floatDebit, err := strconv.ParseFloat(debit.Text, 64)
 		if err != nil {
@@ -265,7 +273,7 @@ func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *
 			dialog.ShowError(err, w)
 		}
 
-		err = db.AddOperation(ctx, article.Text, floatDebit, floatCredit, date.Text)
+		err = db.UpdateOpertions(ctx, int(intId), article.Text, floatDebit, floatCredit, date.Text)
 		if err != nil {
 			dialog.ShowError(err, w)
 		} else {
@@ -279,7 +287,7 @@ func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *
 
 	})
 
-	return container.NewVBox(сont, btn)
+	return container.NewVBox(id, сont, btn)
 }
 func WinIncreaseOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
@@ -319,20 +327,30 @@ func DelOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne
 	return container.NewVBox(winDelOperation)
 }
 func WinDelOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
-	//ctx := context.Background()
+	ctx := context.Background()
 
-	article := widget.NewEntry()
-	article.SetPlaceHolder("id операции")
+	id := widget.NewEntry()
+	id.SetPlaceHolder("id")
 
-	btn := widget.NewButton("Удалить операцию", func() {
+	btn := widget.NewButton("Удалить статью", func() {
 
-		dialog.ShowInformation("Удалить операцию", "зачем оно тебе?", w)
-		err := UpdateOperationTable(db, table)
+		intId, err := strconv.ParseInt(id.Text, 0, 0)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+
+		err = db.DeleteOperation(ctx, int(intId))
+		if err != nil {
+			dialog.ShowError(err, w)
+		} else {
+			dialog.ShowInformation("Удалить операцию", "Надо оно тебе?", w)
+		}
+		err = UpdateOperationTable(db, table)
 		if err != nil {
 			dialog.ShowError(err, w)
 		}
 
 	})
 
-	return container.NewVBox(article, btn)
+	return container.NewVBox(id, btn)
 }
