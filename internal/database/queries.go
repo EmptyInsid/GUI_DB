@@ -665,29 +665,17 @@ func (db *Database) GetIncomeExpenseDynamics(ctx context.Context, articles []str
 	}
 	defer tx.Rollback(ctx)
 
-	// query := `CALL get_income_expense_dynamics($1, $2, $3, $4)`
-	// cursorName := "help"
-	// _, err = db.pool.Exec(ctx, query, startDate, endDate, articles, &cursorName)
-	// if err != nil {
-	// 	log.Printf("Procedure call failed: %v\n", err)
-	// 	return nil, err
-	// }
+	query := `CALL get_income_expense_dynamics($1, $2, $3, $4)`
+	cursorName := "help"
 
-	query := `
-	SELECT 
-        create_date AS date,
-        COALESCE(SUM(o.debit), 0::numeric) AS total_debit,
-        COALESCE(SUM(o.credit), 0::numeric) AS total_credit
-    FROM articles a
-    LEFT JOIN operations o ON a.id = o.article_id
-    WHERE a.name = ANY ($1)
-      AND create_date BETWEEN $2 AND $3
-    GROUP BY create_date
-    ORDER BY create_date;
-	`
+	_, err = tx.Exec(ctx, query, startDate, endDate, articles, cursorName)
+	if err != nil {
+		log.Printf("Procedure call failed: %v\n", err)
+		return nil, err
+	}
 
 	// Извлечение данных из курсора
-	rows, err := db.pool.Query(ctx, query, articles, startDate, endDate)
+	rows, err := tx.Query(ctx, fmt.Sprintf("FETCH ALL FROM %s", cursorName))
 	if err != nil {
 		log.Printf("Failed to fetch cursor data: %v\n", err)
 		return nil, err
@@ -714,6 +702,7 @@ func (db *Database) GetIncomeExpenseDynamics(ctx context.Context, articles []str
 	}
 	return dateTotalMoneys, nil
 }
+
 func (db *Database) GetFinancialPercentages(ctx context.Context, articles []string, flow, startDate, endDate string) ([]FinancialPercentage, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
@@ -722,17 +711,18 @@ func (db *Database) GetFinancialPercentages(ctx context.Context, articles []stri
 	}
 	defer tx.Rollback(ctx)
 
-	query := `CALL calculate_financial_percentages($1, $2, $3, $4, $5)` //я понятия не имею почему эта фигота не работает
+	// Вызов процедуры
+	query := `CALL calculate_financial_percentages($1, $2, $3, $4, $5)`
 	cursorName := "help"
 
-	_, err = db.pool.Exec(ctx, query, startDate, endDate, articles, flow, &cursorName)
+	_, err = tx.Exec(ctx, query, startDate, endDate, articles, flow, cursorName) // Используем tx вместо db.pool
 	if err != nil {
 		log.Printf("Procedure call failed: %v\n", err)
 		return nil, err
 	}
 
 	// Извлечение данных из курсора
-	rows, err := db.pool.Query(ctx, fmt.Sprintf("FETCH ALL FROM %s", cursorName))
+	rows, err := tx.Query(ctx, fmt.Sprintf("FETCH ALL FROM %s", cursorName)) // Используем tx вместо db.pool
 	if err != nil {
 		log.Printf("Failed to fetch cursor data: %v\n", err)
 		return nil, err
@@ -770,7 +760,9 @@ func (db *Database) GetFinancialPercentages(ctx context.Context, articles []stri
 		return nil, err
 	}
 	return dateFinancialPercentages, nil
+
 }
+
 func (db *Database) GetTotalProfitDate(ctx context.Context, startDate, endDate string) ([]DateProfit, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
@@ -779,26 +771,17 @@ func (db *Database) GetTotalProfitDate(ctx context.Context, startDate, endDate s
 	}
 	defer tx.Rollback(ctx)
 
-	query := `CALL get_total_profit_date($1, $2, 'my_cursor')`
+	query := `CALL get_total_profit_date($1, $2, $3)`
+	cursorName := "help"
 
-	_, err = db.pool.Exec(ctx, query, startDate, endDate)
+	_, err = tx.Exec(ctx, query, startDate, endDate, cursorName)
 	if err != nil {
 		log.Printf("Procedure call failed: %v\n", err)
 		return nil, err
 	}
 
-	query = `
-     SELECT 
-         create_date AS date,
-         COALESCE(SUM(o.debit) - SUM(o.credit), 0::numeric) AS total_profit
-     FROM operations o
-     WHERE create_date BETWEEN $1 AND $2
-     GROUP BY create_date
-     ORDER BY create_date;
-	`
-
 	// Извлечение данных из курсора
-	rows, err := db.pool.Query(ctx, query, startDate, endDate)
+	rows, err := tx.Query(ctx, fmt.Sprintf("FETCH ALL FROM %s", cursorName))
 	if err != nil {
 		log.Printf("Failed to fetch cursor data: %v\n", err)
 		return nil, err

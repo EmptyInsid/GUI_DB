@@ -3,6 +3,7 @@ package gui
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
@@ -394,8 +395,6 @@ func UpdateOperationTable(db database.Service, table *widget.Table) error {
 			col, row := i.Col, i.Row
 
 			if row == 0 {
-				//lable.Alignment = fyne.TextAlignCenter
-				//lable.TextStyle = fyne.TextStyle{Bold: true}
 				lable.SetText(header[col])
 			} else {
 				switch col {
@@ -435,6 +434,10 @@ func IncomeExpenseDynamicsTable(db database.Service, articles []string, startDat
 	data, err := db.GetIncomeExpenseDynamics(ctx, articles, startDate, endDate)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, a := range articles {
+		log.Print(a)
 	}
 
 	header := []string{"Номер", "Дата", "Общий доход", "Общий расход"}

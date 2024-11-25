@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"log"
 	"path/filepath"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -15,30 +17,77 @@ import (
 	"github.com/jung-kurt/gofpdf"
 )
 
-func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error) {
-	// Заголовок
-	title := canvas.NewText("Отчёт 1", color.RGBA{R: 135, G: 206, B: 250, A: 255})
-	title.TextStyle = fyne.TextStyle{Bold: true}
-
+func LoadArticles(articlesContainer *fyne.Container) []string {
+	// Сбор всех статей из контейнера
+	articles := []string{}
+	for _, obj := range articlesContainer.Objects {
+		if entry, ok := obj.(*widget.Select); ok {
+			articles = append(articles, strings.TrimSpace(entry.Selected))
+			log.Print(entry.Selected)
+		}
+	}
+	return articles
+}
+func MadeArticlesButton(db database.Service) (*fyne.Container, *widget.Button, *widget.Button, error) {
 	// Поля для ввода статей
+	articlesList, err := db.GetAllArticles(context.Background())
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	var arts []string
+	for _, art := range articlesList {
+		arts = append(arts, art.Name)
+	}
 	articlesContainer := container.NewVBox()
-	initialArticle := widget.NewEntry()
-	initialArticle.SetPlaceHolder("Введите статью")
+	initialArticle := widget.NewSelect(arts, func(value string) {
+		log.Println("Select set to", value)
+	})
 	articlesContainer.Add(initialArticle)
 
 	// Кнопка для добавления новых полей
 	addArticleButton := widget.NewButton("Добавить статью", func() {
-		newArticle := widget.NewEntry()
-		newArticle.SetPlaceHolder("Введите статью")
-		articlesContainer.Add(newArticle)
+		initialArticle := widget.NewSelect(arts, func(value string) {
+			log.Println("Select set to", value)
+		})
+		articlesContainer.Add(initialArticle)
 		articlesContainer.Refresh()
 	})
 
-	// Поля ввода дат
+	// Кнопка для удаления новых полей
+	delArticleButton := widget.NewButton("Удалить статью", func() {
+		count := len(articlesContainer.Objects) - 1
+		if count == 0 {
+			return
+		}
+		articlesContainer.Remove(articlesContainer.Objects[count])
+		articlesContainer.Refresh()
+	})
+
+	return articlesContainer, addArticleButton, delArticleButton, nil
+}
+func MadeTitle(titleText string) *canvas.Text {
+	title := canvas.NewText(titleText, color.RGBA{R: 135, G: 206, B: 250, A: 255})
+	title.TextStyle = fyne.TextStyle{Bold: true}
+	return title
+}
+
+func MadeDateFields() (*widget.Entry, *widget.Entry) {
 	startDate := widget.NewEntry()
 	endDate := widget.NewEntry()
 	startDate.SetPlaceHolder("2024-11-01")
 	endDate.SetPlaceHolder("2024-11-30")
+
+	return startDate, endDate
+}
+
+func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error) {
+
+	title := MadeTitle("Отчёт 1")
+	articlesContainer, addArticleButton, delArticleButton, err := MadeArticlesButton(db)
+	if err != nil {
+		return nil, err
+	}
+	startDate, endDate := MadeDateFields()
 
 	// Контейнер для ввода данных
 	inputContainer := container.NewVBox(
@@ -51,6 +100,7 @@ func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error
 		widget.NewLabel("Статьи:"),
 		articlesContainer,
 		addArticleButton,
+		delArticleButton,
 	)
 
 	// Контейнер для таблицы
@@ -59,12 +109,7 @@ func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error
 	// Функция обновления таблицы
 	updateTable := func() {
 		// Сбор всех статей из контейнера
-		articles := []string{}
-		for _, obj := range articlesContainer.Objects {
-			if entry, ok := obj.(*widget.Entry); ok {
-				articles = append(articles, entry.Text)
-			}
-		}
+		articles := LoadArticles(articlesContainer)
 
 		// Генерация новой таблицы на основе введённых данных
 		newTable, err := IncomeExpenseDynamicsTable(db, articles, startDate.Text, endDate.Text)
@@ -80,8 +125,6 @@ func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error
 
 	// Кнопка "Превью"
 	previewButton := widget.NewButton("Превью", nil)
-
-	// Привязываем функцию обновления к кнопке "Превью"
 	previewButton.OnTapped = updateTable
 
 	// Кнопка "Сохранить"
@@ -89,10 +132,6 @@ func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error
 		dialog.ShowFileSave(
 
 			func(uc fyne.URIWriteCloser, err error) {
-				if err != nil {
-					dialog.ShowError(err, w)
-				}
-
 				if err != nil {
 					dialog.ShowError(err, w)
 					return
@@ -103,14 +142,8 @@ func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error
 
 				defer uc.Close()
 
-				articles := []string{}
-				for _, obj := range articlesContainer.Objects {
-					if entry, ok := obj.(*widget.Entry); ok {
-						articles = append(articles, entry.Text)
-					}
-				}
-				ctx := context.Background()
-				data, err := db.GetIncomeExpenseDynamics(ctx, articles, startDate.Text, endDate.Text)
+				articles := LoadArticles(articlesContainer)
+				data, err := db.GetIncomeExpenseDynamics(context.Background(), articles, startDate.Text, endDate.Text)
 				if err != nil {
 					dialog.ShowError(err, w)
 					return
@@ -134,13 +167,8 @@ func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error
 			}, w)
 	})
 
-	// Верхний тулбар
 	toolbar := container.NewHBox(previewButton, saveButton)
-
-	// Правый элемент: ввод данных
 	rightPane := container.NewVBox(inputContainer, toolbar)
-
-	// Центральная область: таблица
 	mainContent := container.NewHSplit(tableContainer, rightPane)
 	mainContent.SetOffset(0.7) // Устанавливает пропорцию (70% для таблицы, 30% для правой панели)
 
@@ -157,31 +185,16 @@ func MainReportFirst(w fyne.Window, db database.Service) (*fyne.Container, error
 }
 
 func MainReportSecond(w fyne.Window, db database.Service) (*fyne.Container, error) {
-	// Заголовок
-	title := canvas.NewText("Отчёт 2", color.RGBA{R: 135, G: 206, B: 250, A: 255})
-	title.TextStyle = fyne.TextStyle{Bold: true}
+	title := MadeTitle("Отчёт 2")
+	articlesContainer, addArticleButton, delArticleButton, err := MadeArticlesButton(db)
+	if err != nil {
+		return nil, err
+	}
+	startDate, endDate := MadeDateFields()
 
-	// Поля для ввода статей
-	articlesContainer := container.NewVBox()
-	initialArticle := widget.NewEntry()
-	initialArticle.SetPlaceHolder("Введите статью")
-	articlesContainer.Add(initialArticle)
-
-	// Кнопка для добавления новых полей
-	addArticleButton := widget.NewButton("Добавить статью", func() {
-		newArticle := widget.NewEntry()
-		newArticle.SetPlaceHolder("Введите статью")
-		articlesContainer.Add(newArticle)
-		articlesContainer.Refresh()
+	flow := widget.NewSelect([]string{"credit", "debit", "profit"}, func(value string) {
+		log.Printf("Set flow: %s\n", value)
 	})
-
-	// Поля ввода дат
-	startDate := widget.NewEntry()
-	endDate := widget.NewEntry()
-	flow := widget.NewEntry()
-	startDate.SetPlaceHolder("2024-11-01")
-	endDate.SetPlaceHolder("2024-11-30")
-	flow.SetPlaceHolder("поток")
 
 	// Контейнер для ввода данных
 	inputContainer := container.NewVBox(
@@ -196,26 +209,17 @@ func MainReportSecond(w fyne.Window, db database.Service) (*fyne.Container, erro
 		widget.NewLabel("Статьи:"),
 		articlesContainer,
 		addArticleButton,
+		delArticleButton,
 	)
-
-	// Кнопка "Превью"
-	previewButton := widget.NewButton("Превью", nil)
-
-	// Контейнер для таблицы
 	tableContainer := container.NewStack()
 
 	// Функция обновления таблицы
 	updateTable := func() {
 		// Сбор всех статей из контейнера
-		articles := []string{}
-		for _, obj := range articlesContainer.Objects {
-			if entry, ok := obj.(*widget.Entry); ok {
-				articles = append(articles, entry.Text)
-			}
-		}
+		articles := LoadArticles(articlesContainer)
 
 		// Генерация новой таблицы на основе введённых данных
-		newTable, err := FinancialPercentagesTable(db, articles, flow.Text, startDate.Text, endDate.Text)
+		newTable, err := FinancialPercentagesTable(db, articles, flow.Selected, startDate.Text, endDate.Text)
 		if err != nil {
 			dialog.ShowError(err, w)
 			return
@@ -225,19 +229,50 @@ func MainReportSecond(w fyne.Window, db database.Service) (*fyne.Container, erro
 		tableContainer.Objects = []fyne.CanvasObject{newTable}
 		tableContainer.Refresh() // Обновление отображения
 	}
-
-	// Привязываем функцию обновления к кнопке "Превью"
+	previewButton := widget.NewButton("Превью", nil)
 	previewButton.OnTapped = updateTable
 
-	// Кнопка "Сохранить"
 	saveButton := widget.NewButton("Сохранить", func() {
-		dialog.ShowInformation("Сохранение", "Отчёт успешно сохранён.", w)
+		dialog.ShowFileSave(
+
+			func(uc fyne.URIWriteCloser, err error) {
+				if err != nil {
+					dialog.ShowError(err, w)
+					return
+				}
+				if uc == nil {
+					return // Пользователь отменил выбор
+				}
+
+				defer uc.Close()
+
+				articles := LoadArticles(articlesContainer)
+				ctx := context.Background()
+				data, err := db.GetFinancialPercentages(ctx, articles, flow.Selected, startDate.Text, endDate.Text)
+				if err != nil {
+					dialog.ShowError(err, w)
+					return
+				}
+
+				// Получаем путь к файлу
+				filename := uc.URI().Path()
+
+				// Проверяем расширение и добавляем, если отсутствует
+				if filepath.Ext(filename) != ".pdf" {
+					filename += ".pdf"
+				}
+
+				// Сохраняем в PDF
+				err = SaveToPDFSecond(data, filename)
+				if err != nil {
+					dialog.ShowError(err, w)
+				} else {
+					dialog.ShowInformation("Успех", "PDF успешно сохранён!", w)
+				}
+			}, w)
 	})
 
-	// Верхний тулбар
 	toolbar := container.NewHBox(previewButton, saveButton)
-
-	// Правый элемент: ввод данных
 	rightPane := container.NewVBox(inputContainer, toolbar)
 
 	// Центральная область: таблица
@@ -256,17 +291,9 @@ func MainReportSecond(w fyne.Window, db database.Service) (*fyne.Container, erro
 	return mainContainer, nil
 }
 func MainReportThird(w fyne.Window, db database.Service) (*fyne.Container, error) {
-	// Заголовок
-	title := canvas.NewText("Отчёт 3", color.RGBA{R: 135, G: 206, B: 250, A: 255})
-	title.TextStyle = fyne.TextStyle{Bold: true}
+	title := MadeTitle("Отчёт 2")
+	startDate, endDate := MadeDateFields()
 
-	// Поля ввода дат
-	startDate := widget.NewEntry()
-	endDate := widget.NewEntry()
-	startDate.SetPlaceHolder("2024-11-01")
-	endDate.SetPlaceHolder("2024-11-30")
-
-	// Контейнер для ввода данных
 	inputContainer := container.NewVBox(
 		title,
 		widget.NewLabel("Введите параметры:"),
@@ -276,13 +303,9 @@ func MainReportThird(w fyne.Window, db database.Service) (*fyne.Container, error
 		endDate,
 	)
 
-	// Кнопка "Превью"
 	previewButton := widget.NewButton("Превью", nil)
-
-	// Контейнер для таблицы
 	tableContainer := container.NewStack()
 
-	// Функция обновления таблицы
 	updateTable := func() {
 		// Генерация новой таблицы на основе введённых данных
 		newTable, err := TotalProfitDateTable(db, startDate.Text, endDate.Text)
@@ -291,22 +314,15 @@ func MainReportThird(w fyne.Window, db database.Service) (*fyne.Container, error
 			return
 		}
 
-		// Очистка старого содержимого контейнера и добавление новой таблицы
 		tableContainer.Objects = []fyne.CanvasObject{newTable}
-		tableContainer.Refresh() // Обновление отображения
+		tableContainer.Refresh()
 	}
 
-	// Привязываем функцию обновления к кнопке "Превью"
 	previewButton.OnTapped = updateTable
-
-	// Кнопка "Сохранить"
 	saveButton := widget.NewButton("Сохранить", func() {
 		dialog.ShowFileSave(
 
 			func(uc fyne.URIWriteCloser, err error) {
-				if err != nil {
-					dialog.ShowError(err, w)
-				}
 
 				if err != nil {
 					dialog.ShowError(err, w)
@@ -343,13 +359,8 @@ func MainReportThird(w fyne.Window, db database.Service) (*fyne.Container, error
 			}, w)
 	})
 
-	// Верхний тулбар
 	toolbar := container.NewHBox(previewButton, saveButton)
-
-	// Правый элемент: ввод данных
 	rightPane := container.NewVBox(inputContainer, toolbar)
-
-	// Центральная область: таблица
 	mainContent := container.NewHSplit(tableContainer, rightPane)
 	mainContent.SetOffset(0.7) // Устанавливает пропорцию (70% для таблицы, 30% для правой панели)
 
@@ -369,49 +380,72 @@ func MainReportThird(w fyne.Window, db database.Service) (*fyne.Container, error
 func SaveToPDFFirst(data []database.DateTotalMoney, filename string) error {
 	pdf := gofpdf.New("P", "mm", "A4", "") // Создаём новый PDF
 	pdf.AddPage()
+	pdf.SetFont("Arial", "", 12)
 
-	// Устанавливаем шрифт
-	pdf.SetFont("Arial", "B", 12)
+	colWidths := []float64{50, 50, 50}
+	headers := []string{"Name", "Debit", "Credit"}
+	for i, header := range headers {
+		pdf.CellFormat(colWidths[i], 10, header, "1", 0, "C", false, 0, "")
+	}
+	pdf.Ln(10)
 
-	// Заголовок таблицы
-	pdf.Cell(40, 10, "Date")
-	pdf.Cell(40, 10, "Debit")
-	pdf.Cell(40, 10, "Credit")
-	pdf.Ln(10) // Переход на следующую строку
+	// Таблица
+	pdf.SetFont("Arial", "", 10)
+	for i, row := range data {
+		pdf.CellFormat(colWidths[i], 10, row.Date.Format("2006-01-02"), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colWidths[i], 10, fmt.Sprintf("%.2f", row.TotalDebit), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colWidths[i], 10, fmt.Sprintf("%.2f", row.TotalCredit), "1", 0, "C", false, 0, "")
+		pdf.Ln(10)
+	}
+
+	return pdf.OutputFileAndClose(filename)
+}
+
+func SaveToPDFSecond(data []database.FinancialPercentage, filename string) error {
+	pdf := gofpdf.New("P", "mm", "A4", "") // Создаём новый PDF
+	pdf.AddPage()
+	pdf.SetFont("Arial", "", 12)
+
+	colWidths := []float64{40, 30, 30, 30, 30}
+	headers := []string{"Name", "Total_Debit", "Total_Credit", "Total_Profit", "Total_Proc"}
+	for i, header := range headers {
+		pdf.CellFormat(colWidths[i], 10, header, "1", 0, "C", false, 0, "")
+	}
+	pdf.Ln(10)
 
 	// Таблица
 	pdf.SetFont("Arial", "", 10)
 	for _, row := range data {
-		pdf.Cell(40, 10, row.Date.Format("2006-01-02"))
-		pdf.Cell(40, 10, fmt.Sprintf("%2f", row.TotalDebit))
-		pdf.Cell(40, 10, fmt.Sprintf("%2f", row.TotalCredit))
+		pdf.CellFormat(40, 10, row.ArticleName, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(30, 10, fmt.Sprintf("%.2f", row.TotalDebit), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(30, 10, fmt.Sprintf("%.2f", row.TotalCredit), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(30, 10, fmt.Sprintf("%.2f", row.TotalProfit), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(30, 10, fmt.Sprintf("%.2f", row.TotalProc), "1", 0, "C", false, 0, "")
 		pdf.Ln(10)
 	}
 
-	// Сохраняем PDF
 	return pdf.OutputFileAndClose(filename)
 }
 
 func SaveToPDFThird(data []database.DateProfit, filename string) error {
-	pdf := gofpdf.New("P", "mm", "A4", "") // Создаём новый PDF
+	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
+	pdf.SetFont("Arial", "", 12)
 
-	// Устанавливаем шрифт
-	pdf.SetFont("Arial", "B", 12)
-
-	// Заголовок таблицы
-	pdf.Cell(40, 10, "Date")
-	pdf.Cell(40, 10, "Profit")
-	pdf.Ln(10) // Переход на следующую строку
+	colWidths := []float64{50, 50}
+	headers := []string{"Date", "Profit"}
+	for i, header := range headers {
+		pdf.CellFormat(colWidths[i], 10, header, "1", 0, "C", false, 0, "")
+	}
+	pdf.Ln(10)
 
 	// Таблица
 	pdf.SetFont("Arial", "", 10)
-	for _, row := range data {
-		pdf.Cell(40, 10, row.Date.Format("2006-01-02"))
-		pdf.Cell(40, 10, fmt.Sprintf("%2f", row.TotalProfit))
+	for i, row := range data {
+		pdf.CellFormat(colWidths[i], 10, row.Date.Format("2006-01-02"), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colWidths[i], 10, fmt.Sprintf("%.2f", row.TotalProfit), "1", 0, "C", false, 0, "")
 		pdf.Ln(10)
 	}
 
-	// Сохраняем PDF
 	return pdf.OutputFileAndClose(filename)
 }

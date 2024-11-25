@@ -343,7 +343,7 @@ func WinDelOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 		if err != nil {
 			dialog.ShowError(err, w)
 		} else {
-			dialog.ShowInformation("Удалить операцию", "Надо оно тебе?", w)
+			dialog.ShowInformation("Удалить операцию", "Операция успешно удалена", w)
 		}
 		err = UpdateOperationTable(db, table)
 		if err != nil {
