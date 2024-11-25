@@ -11,7 +11,7 @@ import (
 
 // выбрать все статьи
 func (db *Database) GetAllArticles(ctx context.Context) ([]models.Article, error) {
-	rows, err := db.pool.Query(ctx, "SELECT * FROM articles")
+	rows, err := db.pool.Query(ctx, "SELECT * FROM articles ORDER BY articles.id")
 	if err != nil {
 		log.Printf("Error while get articles: %v", err)
 		return nil, err
@@ -37,7 +37,8 @@ func (db *Database) GetUnusedArticles(ctx context.Context, startData, finishData
 	query := `
     SELECT DISTINCT id, name FROM articles 
     WHERE id NOT IN (SELECT DISTINCT operations.article_id FROM operations 
-    WHERE $1 <= create_date AND create_date < $2)`
+    WHERE $1 <= create_date AND create_date < $2)
+	ORDER BY articles.id`
 
 	rows, err := db.pool.Query(ctx, query, startData, finishData)
 	if err != nil {
@@ -62,7 +63,22 @@ func (db *Database) GetUnusedArticles(ctx context.Context, startData, finishData
 
 // добавить новую статью
 func (db *Database) AddArticle(ctx context.Context, name string) error {
-	_, err := db.pool.Exec(ctx, "INSERT INTO articles(name) VALUES ($1)", name)
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return err
+	}
+	defer tx.Rollback(context.Background())
+
+	if _, err := db.pool.Exec(ctx, "INSERT INTO articles(name) VALUES ($1)", name); err != nil {
+		log.Printf("Error while insert article: %v\n", err)
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
+		return err
+	}
 	return err
 }
 
@@ -111,7 +127,7 @@ func (db *Database) DeleteArticle(ctx context.Context, articleName string) error
 
 // получить все балансы
 func (db *Database) GetAllBalances(ctx context.Context) ([]models.Balance, error) {
-	rows, err := db.pool.Query(ctx, "SELECT * FROM balance")
+	rows, err := db.pool.Query(ctx, "SELECT * FROM balance ORDER BY balance.id")
 	if err != nil {
 		log.Printf("Error while get balances: %v", err)
 		return nil, err
@@ -276,7 +292,7 @@ func (db *Database) DeleteMostUnprofitableBalance(ctx context.Context) error {
 
 // получить все операции
 func (db *Database) GetAllOperations(ctx context.Context) ([]models.Operation, error) {
-	rows, err := db.pool.Query(ctx, "SELECT * FROM operations")
+	rows, err := db.pool.Query(ctx, "SELECT * FROM operations ORDER BY operations.id")
 	if err != nil {
 		log.Printf("Error while get operations: %v", err)
 		return nil, err
@@ -312,7 +328,8 @@ func (db *Database) GetArticlesWithOperations(ctx context.Context) ([]ArticleWit
 		operations.id AS operation_id,
 		operations.debit,
 		operations.credit,
-		operations.create_date
+		operations.create_date,
+		operations.balance_id
 	FROM 
 		articles
 	RIGHT JOIN 
@@ -320,7 +337,7 @@ func (db *Database) GetArticlesWithOperations(ctx context.Context) ([]ArticleWit
 	ON 
 		articles.id = operations.article_id
 	ORDER BY 
-		operations.create_date;
+		operations.id;
 	`
 
 	rows, err := db.pool.Query(ctx, query)
@@ -340,6 +357,7 @@ func (db *Database) GetArticlesWithOperations(ctx context.Context) ([]ArticleWit
 			&record.Debit,
 			&record.Credit,
 			&record.CreateDate,
+			&record.BalanceID,
 		)
 		if err != nil {
 			log.Printf("Error scanning row: %v", err)
@@ -372,7 +390,12 @@ func (db *Database) GetProfitByDate(ctx context.Context, startDate, endDate stri
 
 // Добавить операцию в рамках статьи
 func (db *Database) AddOperation(ctx context.Context, articleName string, debit float64, credit float64, date string) error {
-
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return err
+	}
+	defer tx.Rollback(context.Background())
 	// Вставить операцию
 	queryAddOp := `
 	INSERT INTO operations(article_id, debit, credit, create_date, balance_id) VALUES
@@ -381,6 +404,10 @@ func (db *Database) AddOperation(ctx context.Context, articleName string, debit 
 
 	if _, err := db.pool.Exec(ctx, queryAddOp, articleName, debit, credit, date); err != nil {
 		log.Printf("Error insert operation: %v\n", err)
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
 		return err
 	}
 
@@ -452,6 +479,7 @@ func (db *Database) GetViewUnaccountedOpertions(ctx context.Context) ([]ArticleT
 		log.Printf("Error getting unaccounted_operations: %v", err)
 		return nil, err
 	}
+	defer rows.Close()
 
 	var articalTotals []ArticleTotalMoney
 	for rows.Next() {
@@ -467,11 +495,12 @@ func (db *Database) GetViewUnaccountedOpertions(ctx context.Context) ([]ArticleT
 
 // Создать представление, отображающее все балансы и число операций, на основании которых они были сформированы
 func (db *Database) GetViewCountBalanceOper(ctx context.Context) ([]BalanceOperations, error) {
-	rows, err := db.pool.Query(ctx, "SELECT * FROM balance_operations_count")
+	rows, err := db.pool.Query(ctx, "SELECT * FROM balance_operations_count ORDER BY balance_id")
 	if err != nil {
 		log.Printf("Error getting balance_operations_count: %v", err)
 		return nil, err
 	}
+	defer rows.Close()
 
 	var balOps []BalanceOperations
 	for rows.Next() {
@@ -519,7 +548,19 @@ func (db *Database) GetStoreProcArticleMaxExpens(ctx context.Context, balance in
 
 // добавление новых пользователей
 func (db *Database) RegistrUserDB(ctx context.Context, username, password, role string) error {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return err
+	}
+	defer tx.Rollback(context.Background())
+
 	if _, err := db.pool.Exec(ctx, "INSERT INTO users(username, password, role) VALUES($1, $2, $3)", username, password, role); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
 		return err
 	}
 	return nil
@@ -539,7 +580,7 @@ func (db *Database) AuthUser(ctx context.Context, username, password string) (st
 	return storedPassword, role, nil
 }
 
-func (db *Database) UpdateOpertions(ctx context.Context, id int, articleName string, debit float64, credit float64, date string) error {
+func (db *Database) UpdateOpertions(ctx context.Context, id int, articleName string, debit float64, credit float64) error {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
@@ -553,11 +594,10 @@ func (db *Database) UpdateOpertions(ctx context.Context, id int, articleName str
 		article_id = (SELECT DISTINCT id FROM articles WHERE articles.name = $1),
 		debit = $2,
 		credit = $3,
-		create_date = $4
 	WHERE id = $5
 	`
 
-	commandTag, err := db.pool.Exec(ctx, query, articleName, debit, credit, date, id)
+	commandTag, err := db.pool.Exec(ctx, query, articleName, debit, credit, id)
 
 	if err != nil {
 		log.Printf("Error failed to update operation name: %v", err)
@@ -615,4 +655,173 @@ func (db *Database) DeleteBalance(ctx context.Context, date string) error {
 		return err
 	}
 	return nil
+}
+
+func (db *Database) GetIncomeExpenseDynamics(ctx context.Context, articles []string, startDate, endDate string) ([]DateTotalMoney, error) {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	// query := `CALL get_income_expense_dynamics($1, $2, $3, $4)`
+	// cursorName := "help"
+	// _, err = db.pool.Exec(ctx, query, startDate, endDate, articles, &cursorName)
+	// if err != nil {
+	// 	log.Printf("Procedure call failed: %v\n", err)
+	// 	return nil, err
+	// }
+
+	query := `
+	SELECT 
+        create_date AS date,
+        COALESCE(SUM(o.debit), 0::numeric) AS total_debit,
+        COALESCE(SUM(o.credit), 0::numeric) AS total_credit
+    FROM articles a
+    LEFT JOIN operations o ON a.id = o.article_id
+    WHERE a.name = ANY ($1)
+      AND create_date BETWEEN $2 AND $3
+    GROUP BY create_date
+    ORDER BY create_date;
+	`
+
+	// Извлечение данных из курсора
+	rows, err := db.pool.Query(ctx, query, articles, startDate, endDate)
+	if err != nil {
+		log.Printf("Failed to fetch cursor data: %v\n", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Чтение данных
+	var dateTotalMoneys []DateTotalMoney
+	fmt.Println("Date\t\tDebit\t\tCredit")
+	for rows.Next() {
+		var dateTotalMoney DateTotalMoney
+		err := rows.Scan(&dateTotalMoney.Date, &dateTotalMoney.TotalDebit, &dateTotalMoney.TotalCredit)
+		if err != nil {
+			log.Printf("Failed to scan row: %v\n", err)
+			return nil, err
+		}
+		fmt.Printf("%s\t%.2f\t%.2f\n", dateTotalMoney.Date, dateTotalMoney.TotalDebit, dateTotalMoney.TotalCredit)
+		dateTotalMoneys = append(dateTotalMoneys, dateTotalMoney)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
+		return nil, err
+	}
+	return dateTotalMoneys, nil
+}
+func (db *Database) GetFinancialPercentages(ctx context.Context, articles []string, flow, startDate, endDate string) ([]FinancialPercentage, error) {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	query := `CALL calculate_financial_percentages($1, $2, $3, $4, $5)` //я понятия не имею почему эта фигота не работает
+	cursorName := "help"
+
+	_, err = db.pool.Exec(ctx, query, startDate, endDate, articles, flow, &cursorName)
+	if err != nil {
+		log.Printf("Procedure call failed: %v\n", err)
+		return nil, err
+	}
+
+	// Извлечение данных из курсора
+	rows, err := db.pool.Query(ctx, fmt.Sprintf("FETCH ALL FROM %s", cursorName))
+	if err != nil {
+		log.Printf("Failed to fetch cursor data: %v\n", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Чтение данных
+	var dateFinancialPercentages []FinancialPercentage
+	fmt.Println("Date\t\tDebit\t\tCredit")
+	for rows.Next() {
+		var dateFinancialPercentage FinancialPercentage
+		err := rows.Scan(
+			&dateFinancialPercentage.ArticleName,
+			&dateFinancialPercentage.TotalDebit,
+			&dateFinancialPercentage.TotalCredit,
+			&dateFinancialPercentage.TotalProfit,
+			&dateFinancialPercentage.TotalProc,
+		)
+		if err != nil {
+			log.Printf("Failed to scan row: %v\n", err)
+			return nil, err
+		}
+		fmt.Printf("%s\t%.2f\t%.2f\n%.2f\t%.2f\t",
+			dateFinancialPercentage.ArticleName,
+			dateFinancialPercentage.TotalDebit,
+			dateFinancialPercentage.TotalCredit,
+			dateFinancialPercentage.TotalProfit,
+			dateFinancialPercentage.TotalProc,
+		)
+		dateFinancialPercentages = append(dateFinancialPercentages, dateFinancialPercentage)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
+		return nil, err
+	}
+	return dateFinancialPercentages, nil
+}
+func (db *Database) GetTotalProfitDate(ctx context.Context, startDate, endDate string) ([]DateProfit, error) {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Printf("Error starting transaction: %v", err)
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	query := `CALL get_total_profit_date($1, $2, 'my_cursor')`
+
+	_, err = db.pool.Exec(ctx, query, startDate, endDate)
+	if err != nil {
+		log.Printf("Procedure call failed: %v\n", err)
+		return nil, err
+	}
+
+	query = `
+     SELECT 
+         create_date AS date,
+         COALESCE(SUM(o.debit) - SUM(o.credit), 0::numeric) AS total_profit
+     FROM operations o
+     WHERE create_date BETWEEN $1 AND $2
+     GROUP BY create_date
+     ORDER BY create_date;
+	`
+
+	// Извлечение данных из курсора
+	rows, err := db.pool.Query(ctx, query, startDate, endDate)
+	if err != nil {
+		log.Printf("Failed to fetch cursor data: %v\n", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Чтение данных
+	var dateProfits []DateProfit
+	fmt.Println("Date\t\tDebit\t\tCredit")
+	for rows.Next() {
+		var dateProfit DateProfit
+		err := rows.Scan(&dateProfit.Date, &dateProfit.TotalProfit)
+		if err != nil {
+			log.Printf("Failed to scan row: %v\n", err)
+			return nil, err
+		}
+		fmt.Printf("%s\t%.2f\n", dateProfit.Date, dateProfit.TotalProfit)
+		dateProfits = append(dateProfits, dateProfit)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error commit transaction: %v\n", err)
+		return nil, err
+	}
+	return dateProfits, nil
 }

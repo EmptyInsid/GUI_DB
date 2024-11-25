@@ -19,12 +19,13 @@ func LoginMenu(w fyne.Window, db database.Service) {
 		AuthForm(w, db)
 	})
 
-	btnRegistr := widget.NewButton("Зарегистрироваться", func() {
-		log.Println("User clicked 'Зарегистрироваться'")
-		//RegistrationForm(w, db)
-	})
+	// btnRegistr := widget.NewButton("Зарегистрироваться", func() {
+	// 	log.Println("User clicked 'Зарегистрироваться'")
+	// 	//RegistrationForm(w, db)
+	// })
 
-	w.SetContent(container.NewVBox(btnLogin, btnRegistr))
+	w.Resize(fyne.NewSize(250, 250))
+	w.SetContent(container.NewCenter(btnLogin))
 }
 
 // форма входа
@@ -59,5 +60,5 @@ func AuthForm(w fyne.Window, db database.Service) {
 		w.Close()
 	}
 
-	w.SetContent(container.NewVBox(form))
+	w.SetContent(container.NewCenter(form))
 }

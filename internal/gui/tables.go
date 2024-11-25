@@ -17,7 +17,7 @@ func OperationsTable(db database.Service) (*widget.Table, error) {
 		return nil, err
 	}
 
-	header := []string{"Номер", "Id", "Статья", "Доход", "Расход", "Дата"}
+	header := []string{"Номер", "Id", "Статья", "Доход", "Расход", "Дата", "Учёт"}
 
 	table := widget.NewTable(
 		func() (int, int) {
@@ -48,6 +48,12 @@ func OperationsTable(db database.Service) (*widget.Table, error) {
 					lable.SetText(fmt.Sprint(data[row-1].Credit))
 				case 5:
 					lable.SetText(fmt.Sprint(data[row-1].CreateDate.Format("2006-01-02")))
+				case 6:
+					text := "Не учтена"
+					if data[row-1].BalanceID != nil {
+						text = "Учтена"
+					}
+					lable.SetText(fmt.Sprint(text))
 				default:
 					lable.SetText("-")
 				}
@@ -58,9 +64,10 @@ func OperationsTable(db database.Service) (*widget.Table, error) {
 	table.SetColumnWidth(0, widget.NewLabel("Number").MinSize().Width)
 	table.SetColumnWidth(1, widget.NewLabel("Number").MinSize().Width)
 	table.SetColumnWidth(2, widget.NewLabel("very very wide content").MinSize().Width)
-	table.SetColumnWidth(3, widget.NewLabel("10000000").MinSize().Width)
-	table.SetColumnWidth(4, widget.NewLabel("10000000").MinSize().Width)
-	table.SetColumnWidth(5, widget.NewLabel("2024-11-01").MinSize().Width)
+	table.SetColumnWidth(3, widget.NewLabel("10000000 50").MinSize().Width)
+	table.SetColumnWidth(4, widget.NewLabel("10000000 50").MinSize().Width)
+	table.SetColumnWidth(5, widget.NewLabel("2024-11-01 50").MinSize().Width)
+	table.SetColumnWidth(6, widget.NewLabel("Не учтена 50").MinSize().Width)
 
 	return table, nil
 }
@@ -375,41 +382,196 @@ func UpdateOperationTable(db database.Service, table *widget.Table) error {
 		return err
 	}
 
-	header := []string{"Номер", "Id", "Статья", "Доход", "Расход", "Дата"}
+	header := []string{"Номер", "Id", "Статья", "Доход", "Расход", "Дата", "Учёт"}
 
 	// Обновляем таблицу
 	table.Length = func() (int, int) {
 		return len(data) + 1, len(header)
 	}
-	table.UpdateCell = func(i widget.TableCellID, o fyne.CanvasObject) {
-		lable := o.(*widget.Label)
-		col, row := i.Col, i.Row
+	table.UpdateCell =
+		func(i widget.TableCellID, o fyne.CanvasObject) {
+			lable := o.(*widget.Label)
+			col, row := i.Col, i.Row
 
-		if row == 0 {
-			//lable.Alignment = fyne.TextAlignCenter
-			//lable.TextStyle = fyne.TextStyle{Bold: true}
-			lable.SetText(header[col])
-		} else {
-			switch col {
-			case 0:
-				lable.SetText(fmt.Sprint(row))
-			case 1:
-				lable.SetText(fmt.Sprint(data[row-1].OperationID))
-			case 2:
-				lable.SetText(fmt.Sprint(data[row-1].ArticleName))
-			case 3:
-				lable.SetText(fmt.Sprint(data[row-1].Debit))
-			case 4:
-				lable.SetText(fmt.Sprint(data[row-1].Credit))
-			case 5:
-				lable.SetText(fmt.Sprint(data[row-1].CreateDate.Format("2006-01-02")))
-			default:
-				lable.SetText("-")
+			if row == 0 {
+				//lable.Alignment = fyne.TextAlignCenter
+				//lable.TextStyle = fyne.TextStyle{Bold: true}
+				lable.SetText(header[col])
+			} else {
+				switch col {
+				case 0:
+					lable.SetText(fmt.Sprint(row))
+				case 1:
+					lable.SetText(fmt.Sprint(data[row-1].OperationID))
+				case 2:
+					lable.SetText(fmt.Sprint(data[row-1].ArticleName))
+				case 3:
+					lable.SetText(fmt.Sprint(data[row-1].Debit))
+				case 4:
+					lable.SetText(fmt.Sprint(data[row-1].Credit))
+				case 5:
+					lable.SetText(fmt.Sprint(data[row-1].CreateDate.Format("2006-01-02")))
+				case 6:
+					text := "Не учтена"
+					if data[row-1].BalanceID != nil {
+						text = "Учтена"
+					}
+					lable.SetText(fmt.Sprint(text))
+				default:
+					lable.SetText("-")
+				}
+
 			}
-
 		}
-	}
 
 	table.Refresh() // Обновляем представление
 	return nil
+}
+
+// ДЛЯ ОТЧЁТОВ
+func IncomeExpenseDynamicsTable(db database.Service, articles []string, startDate, endDate string) (*widget.Table, error) {
+	ctx := context.Background()
+
+	data, err := db.GetIncomeExpenseDynamics(ctx, articles, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	header := []string{"Номер", "Дата", "Общий доход", "Общий расход"}
+
+	table := widget.NewTable(
+		func() (int, int) {
+			return len(data) + 1, len(header)
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("very very wide content")
+		},
+		func(i widget.TableCellID, o fyne.CanvasObject) {
+			lable := o.(*widget.Label)
+			col, row := i.Col, i.Row
+
+			if row == 0 {
+				lable.SetText(header[col])
+			} else {
+				switch col {
+				case 0:
+					lable.SetText(fmt.Sprint(row))
+				case 1:
+					lable.SetText(fmt.Sprint(data[row-1].Date.Format("2006-01-02")))
+				case 2:
+					lable.SetText(fmt.Sprint(data[row-1].TotalDebit))
+				case 3:
+					lable.SetText(fmt.Sprint(data[row-1].TotalCredit))
+				default:
+					lable.SetText("-")
+				}
+
+			}
+		})
+
+	table.SetColumnWidth(0, widget.NewLabel("Number").MinSize().Width)
+	table.SetColumnWidth(1, widget.NewLabel("2024-11-01 50").MinSize().Width)
+	table.SetColumnWidth(2, widget.NewLabel("10000000 50").MinSize().Width)
+	table.SetColumnWidth(3, widget.NewLabel("10000000 50").MinSize().Width)
+
+	return table, nil
+}
+func FinancialPercentagesTable(db database.Service, articles []string, flow, startDate, endDate string) (*widget.Table, error) {
+	//GetFinancialPercentages(ctx context.Context, articles []string, flow, startDate, endDate string) ([]FinancialPercentage, error)
+	ctx := context.Background()
+
+	data, err := db.GetFinancialPercentages(ctx, articles, flow, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	header := []string{"Номер", "Статья", "Общий доход", "Общий расход", "Прибыль", "Процент"}
+
+	table := widget.NewTable(
+		func() (int, int) {
+			return len(data) + 1, len(header)
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("very very wide content")
+		},
+		func(i widget.TableCellID, o fyne.CanvasObject) {
+			lable := o.(*widget.Label)
+			col, row := i.Col, i.Row
+
+			if row == 0 {
+				lable.SetText(header[col])
+			} else {
+				switch col {
+				case 0:
+					lable.SetText(fmt.Sprint(row))
+				case 1:
+					lable.SetText(fmt.Sprint(data[row-1].ArticleName))
+				case 2:
+					lable.SetText(fmt.Sprint(data[row-1].TotalDebit))
+				case 3:
+					lable.SetText(fmt.Sprint(data[row-1].TotalCredit))
+				case 4:
+					lable.SetText(fmt.Sprint(data[row-1].TotalProfit))
+				case 5:
+					lable.SetText(fmt.Sprint(data[row-1].TotalProc))
+				default:
+					lable.SetText("-")
+				}
+
+			}
+		})
+
+	table.SetColumnWidth(0, widget.NewLabel("Number").MinSize().Width)
+	table.SetColumnWidth(1, widget.NewLabel("very very wide content").MinSize().Width)
+	table.SetColumnWidth(2, widget.NewLabel("10000000 50").MinSize().Width)
+	table.SetColumnWidth(3, widget.NewLabel("10000000 50").MinSize().Width)
+	table.SetColumnWidth(4, widget.NewLabel("10000000 50").MinSize().Width)
+	table.SetColumnWidth(5, widget.NewLabel("10000000 50").MinSize().Width)
+
+	return table, nil
+}
+func TotalProfitDateTable(db database.Service, startDate, endDate string) (*widget.Table, error) {
+	//GetTotalProfitDate(ctx context.Context, startDate, endDate string) ([]DateProfit, error)
+	ctx := context.Background()
+
+	data, err := db.GetTotalProfitDate(ctx, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	header := []string{"Номер", "Дата", "Прибыль"}
+
+	table := widget.NewTable(
+		func() (int, int) {
+			return len(data) + 1, len(header)
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("very very wide content")
+		},
+		func(i widget.TableCellID, o fyne.CanvasObject) {
+			lable := o.(*widget.Label)
+			col, row := i.Col, i.Row
+
+			if row == 0 {
+				lable.SetText(header[col])
+			} else {
+				switch col {
+				case 0:
+					lable.SetText(fmt.Sprint(row))
+				case 1:
+					lable.SetText(fmt.Sprint(data[row-1].Date.Format("2006-01-02")))
+				case 2:
+					lable.SetText(fmt.Sprint(data[row-1].TotalProfit))
+				default:
+					lable.SetText("-")
+				}
+
+			}
+		})
+
+	table.SetColumnWidth(0, widget.NewLabel("Number").MinSize().Width)
+	table.SetColumnWidth(1, widget.NewLabel("2024-11-01 50").MinSize().Width)
+	table.SetColumnWidth(2, widget.NewLabel("10000000 50").MinSize().Width)
+
+	return table, nil
 }

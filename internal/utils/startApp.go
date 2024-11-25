@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/theme"
 	"github.com/EmptyInsid/db_gui/internal/database"
@@ -15,7 +14,6 @@ func StartApp(db database.Service) {
 	a.Settings().SetTheme(theme.DarkTheme())
 
 	w := a.NewWindow("Домашний бюджет")
-	w.Resize(fyne.NewSize(1000, 500))
 	w.CenterOnScreen()
 
 	gui.LoginMenu(w, db)

@@ -37,12 +37,16 @@ type Service interface {
 	GetStoreProcLastBalanceOp(ctx context.Context) error                                 //
 	GetStoreProcArticleMaxExpens(ctx context.Context, balance int, article string) error //
 
-	UpdateArticle(ctx context.Context, oldName, newName string) error                                                  //справочник статей +
-	UpdateOpertions(ctx context.Context, id int, articleName string, debit float64, credit float64, date string) error //справочник операций +
-	IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error                  //справочник операций +
+	UpdateArticle(ctx context.Context, oldName, newName string) error                                     //справочник статей +
+	UpdateOpertions(ctx context.Context, id int, articleName string, debit float64, credit float64) error //справочник операций +
+	IncreaseExpensesForArticle(ctx context.Context, articleName string, increaseAmount float64) error     //справочник операций +
 
 	AuthUser(ctx context.Context, username, password string) (string, string, error) //вход +
 	RegistrUserDB(ctx context.Context, username, password, role string) error        //регистрация -
+
+	GetIncomeExpenseDynamics(ctx context.Context, articles []string, startDate, endDate string) ([]DateTotalMoney, error)
+	GetFinancialPercentages(ctx context.Context, articles []string, flow, startDate, endDate string) ([]FinancialPercentage, error)
+	GetTotalProfitDate(ctx context.Context, startDate, endDate string) ([]DateProfit, error)
 }
 
 type Database struct {
@@ -55,7 +59,8 @@ type ArticleWithOperations struct {
 	OperationID int
 	Debit       float64
 	Credit      float64
-	CreateDate  time.Time // NULL, если операции нет
+	CreateDate  time.Time
+	BalanceID   *float64 // NULL, если операция не учтена
 }
 
 type ArticleTotalMoney struct {
@@ -68,4 +73,23 @@ type BalanceOperations struct {
 	BalanceId      int
 	BalanceDate    time.Time
 	OperationCount int
+}
+
+type DateTotalMoney struct {
+	Date        time.Time
+	TotalDebit  float64
+	TotalCredit float64
+}
+
+type FinancialPercentage struct {
+	ArticleName string
+	TotalDebit  float64
+	TotalCredit float64
+	TotalProfit float64
+	TotalProc   float64
+}
+
+type DateProfit struct {
+	Date        time.Time
+	TotalProfit float64
 }

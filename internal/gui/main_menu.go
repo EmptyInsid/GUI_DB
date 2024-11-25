@@ -10,18 +10,36 @@ import (
 func MainWindow(w fyne.Window, db database.Service, role string) {
 	MainMenu(w, db)
 	emptyArea := container.NewStack()
+	w.Resize(fyne.NewSize(1000, 500))
+	w.CenterOnScreen()
 	w.SetContent(container.NewBorder(nil, nil, nil, nil, emptyArea))
 }
 
 func MainMenu(w fyne.Window, db database.Service) {
 
 	reportFirst := fyne.NewMenuItem("Отчёт 1", func() {
-		dialog.ShowInformation("Создать отчёт 1", "По этой кнопке будет создаваться отчёт первого типа", w)
+		cont, err := MainReportFirst(w, db)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+		w.SetContent(cont)
 	})
 	reportSecond := fyne.NewMenuItem("Отчёт 2", func() {
-		dialog.ShowInformation("Создать отчёт 2", "По этой кнопке будет создаваться отчёт второго типа", w)
+		cont, err := MainReportSecond(w, db)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+		w.SetContent(cont)
 	})
-	reportMenu := fyne.NewMenu("Отчёт", reportFirst, reportSecond)
+	reportThird := fyne.NewMenuItem("Отчёт 3", func() {
+		cont, err := MainReportThird(w, db)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+		w.SetContent(cont)
+	})
+
+	reportMenu := fyne.NewMenu("Отчёт", reportFirst, reportSecond, reportThird)
 
 	jorney := fyne.NewMenuItem("Балансы", func() {
 		jorneyContent, err := MainJorney(w, db)

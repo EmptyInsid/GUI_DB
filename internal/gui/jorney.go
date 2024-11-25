@@ -14,7 +14,7 @@ import (
 	"github.com/EmptyInsid/db_gui/internal/database"
 )
 
-func MainJorney(w fyne.Window, db database.Service) (*fyne.Container, error) {
+func MainJorney(w fyne.Window, db database.Service) (*container.Split, error) {
 	table, err := BalanceTable(db)
 	if err != nil {
 		dialog.ShowError(err, w)
@@ -26,12 +26,12 @@ func MainJorney(w fyne.Window, db database.Service) (*fyne.Container, error) {
 }
 
 func AccordionJorney(w fyne.Window, db database.Service, table *widget.Table) *widget.Accordion {
-	accFilters := FiltersButtons(w, db, table)
+	//accFilters := FiltersButtons(w, db, table)
 	accSums := SummariesAccord(w, db)
 	accEdit := EditAccord(w, db, table)
 
 	editor := widget.NewAccordion(
-		widget.NewAccordionItem("Фильтры", accFilters),
+		//widget.NewAccordionItem("Фильтры", accFilters),
 		widget.NewAccordionItem("Сводки", accSums),
 		widget.NewAccordionItem("Редактировать", accEdit),
 	)
@@ -43,7 +43,7 @@ func FiltersButtons(w fyne.Window, db database.Service, table *widget.Table) *fy
 		dialog.ShowInformation("Баланс по дате формирования", "Здесь возможно будет баланс по дате", w)
 	})
 
-	return container.NewVBox(btnProfit)
+	return container.NewVBox(canvas.NewLine(color.White), btnProfit)
 }
 
 // РАЗДЕЛ СВОДОК
@@ -52,7 +52,7 @@ func SummariesAccord(w fyne.Window, db database.Service) *fyne.Container {
 	winCredit := WinGetCredit(w, db)
 	winBalance := WinBalanceCount(w, db)
 
-	return container.NewVBox(winProfit, canvas.NewLine(color.Black), winCredit, canvas.NewLine(color.Black), winBalance)
+	return container.NewVBox(canvas.NewLine(color.White), winProfit, canvas.NewLine(color.White), winCredit, canvas.NewLine(color.White), winBalance)
 }
 func WinGetProfit(w fyne.Window, db database.Service) *fyne.Container {
 	ctx := context.Background()
@@ -132,7 +132,7 @@ func EditAccord(w fyne.Window, db database.Service, table *widget.Table) *fyne.C
 	winDelUnprof := WinDeleteUnprofitBalance(w, db, table)
 	winDelBalance := WinDelBalance(w, db, table)
 
-	return container.NewVBox(winCreateBalance, canvas.NewLine(color.White), winDelBalance, canvas.NewLine(color.White), winDelUnprof)
+	return container.NewVBox(canvas.NewLine(color.White), winCreateBalance, canvas.NewLine(color.White), winDelBalance, canvas.NewLine(color.White), winDelUnprof)
 }
 func WinCreateNewBalance(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()

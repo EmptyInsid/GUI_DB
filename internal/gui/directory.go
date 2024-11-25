@@ -2,9 +2,11 @@ package gui
 
 import (
 	"context"
+	"image/color"
 	"strconv"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
@@ -19,7 +21,7 @@ func MainDir(w fyne.Window, db database.Service) (*fyne.Container, error) {
 	return container.NewStack(dirContent), nil
 }
 
-func ArticleViewer(w fyne.Window, db database.Service) (*fyne.Container, error) {
+func ArticleViewer(w fyne.Window, db database.Service) (*container.Split, error) {
 	table, err := ArticleTable(db)
 	if err != nil {
 		return nil, err
@@ -32,7 +34,7 @@ func ArticleViewer(w fyne.Window, db database.Service) (*fyne.Container, error) 
 	return GridViewer(db, table, editor), nil
 }
 
-func OperationsViewer(w fyne.Window, db database.Service) (*fyne.Container, error) {
+func OperationsViewer(w fyne.Window, db database.Service) (*container.Split, error) {
 	table, err := OperationsTable(db)
 	if err != nil {
 		return nil, err
@@ -82,7 +84,7 @@ func AccordionDirArticle(w fyne.Window, db database.Service, table *widget.Table
 // РАЗДЕЛ ДОБАВИТЬ СТАТЬЮ
 func AddArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	winAddArticle := WinAddArticle(w, db, table)
-	return container.NewVBox(winAddArticle)
+	return container.NewVBox(canvas.NewLine(color.White), winAddArticle)
 }
 func WinAddArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
@@ -112,7 +114,7 @@ func WinAddArticle(w fyne.Window, db database.Service, table *widget.Table) *fyn
 // РАЗДЕЛ РЕДАКТИРОВАТЬ СТАТЬЮ
 func EditArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	winEditArticle := WinEditArticle(w, db, table)
-	return container.NewVBox(winEditArticle)
+	return container.NewVBox(canvas.NewLine(color.White), winEditArticle)
 }
 func WinEditArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
@@ -144,7 +146,7 @@ func WinEditArticle(w fyne.Window, db database.Service, table *widget.Table) *fy
 // РАЗДЕЛ УДАЛЕНИЯ СТАТЬИ
 func DelArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	winDelArticle := WinDelArticle(w, db, table)
-	return container.NewVBox(winDelArticle)
+	return container.NewVBox(canvas.NewLine(color.White), winDelArticle)
 }
 func WinDelArticle(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
@@ -187,7 +189,7 @@ func AccordionDirOper(w fyne.Window, db database.Service, table *widget.Table) (
 // РАЗДЕЛ ДОБАВИТЬ ОПЕРАЦИЮ
 func AddOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	winAddOperation := WinAddOperation(w, db, table)
-	return container.NewVBox(winAddOperation)
+	return container.NewVBox(canvas.NewLine(color.White), winAddOperation)
 }
 func WinAddOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
@@ -237,24 +239,22 @@ func WinAddOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 func EditOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	winEditOperation := WinEditOperation(w, db, table)
 	winIncOperation := WinIncreaseOperation(w, db, table)
-	return container.NewVBox(winEditOperation, winIncOperation)
+	return container.NewVBox(canvas.NewLine(color.White), winEditOperation, canvas.NewLine(color.White), winIncOperation)
 }
 func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
 
 	id := widget.NewEntry()
 	article := widget.NewEntry()
-	date := widget.NewEntry()
 	debit := widget.NewEntry()
 	credit := widget.NewEntry()
 
 	id.SetPlaceHolder("id")
 	article.SetPlaceHolder("статья")
-	date.SetPlaceHolder("дата")
 	debit.SetPlaceHolder("доход")
 	credit.SetPlaceHolder("расход")
 
-	сont := container.NewStack(container.NewAdaptiveGrid(2, article, date, debit, credit))
+	сont := container.NewStack(container.NewAdaptiveGrid(2, id, article, debit, credit))
 
 	btn := widget.NewButton("Изменить операцию", func() {
 
@@ -273,7 +273,7 @@ func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *
 			dialog.ShowError(err, w)
 		}
 
-		err = db.UpdateOpertions(ctx, int(intId), article.Text, floatDebit, floatCredit, date.Text)
+		err = db.UpdateOpertions(ctx, int(intId), article.Text, floatDebit, floatCredit)
 		if err != nil {
 			dialog.ShowError(err, w)
 		} else {
@@ -287,7 +287,7 @@ func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *
 
 	})
 
-	return container.NewVBox(id, сont, btn)
+	return container.NewVBox(сont, btn)
 }
 func WinIncreaseOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
@@ -324,7 +324,7 @@ func WinIncreaseOperation(w fyne.Window, db database.Service, table *widget.Tabl
 // РАЗДЕЛ УДАЛЕНИЯ ОПЕРАЦИЮ
 func DelOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	winDelOperation := WinDelOperation(w, db, table)
-	return container.NewVBox(winDelOperation)
+	return container.NewVBox(canvas.NewLine(color.White), winDelOperation)
 }
 func WinDelOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
