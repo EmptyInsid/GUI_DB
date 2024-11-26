@@ -7,7 +7,7 @@ import (
 )
 
 // table + toolbar
-func GridViewer(db database.Service, table *widget.Table, toolbar *widget.Accordion) *container.Split {
+func GridViewer(db database.Service, table *widget.Table, toolbar *widget.Accordion, role string) *container.Split {
 	tableContainer := container.NewStack(table)
 	toolBarContainer := container.NewVBox(toolbar)
 	mainContent := container.NewHSplit(tableContainer, toolBarContainer)

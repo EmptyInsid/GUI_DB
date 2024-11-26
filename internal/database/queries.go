@@ -172,7 +172,7 @@ func (db *Database) GetBalanceCountByArticleName(ctx context.Context, articleNam
 }
 
 // Вывести сумму расходов по заданной статье, агрегируя по балансам за указанный период
-func (db *Database) GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName string, startDate, finishDate string) (float64, error) {
+func (db *Database) GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName, startDate, finishDate string) (float64, error) {
 	query := `
 	SELECT SUM(o.credit) AS total_credit
 	FROM operations o
@@ -370,16 +370,19 @@ func (db *Database) GetArticlesWithOperations(ctx context.Context) ([]ArticleWit
 }
 
 // Посчитать прибыль за заданную дату
-func (db *Database) GetProfitByDate(ctx context.Context, startDate, endDate string) (float64, error) {
+func (db *Database) GetProfitByDate(ctx context.Context, articleName, startDate, endDate string) (float64, error) {
 	var totalProfit float64
 
 	query := `
-	SELECT COALESCE(SUM(debit - credit), 0)
-	FROM operations
-	WHERE create_date BETWEEN $1 AND $2
+		SELECT COALESCE(SUM(o.debit - o.credit), 0)
+	FROM operations o
+	JOIN articles a ON o.article_id = a.id
+	JOIN balance b ON o.balance_id = b.id
+	WHERE a.name = $1
+	  AND b.create_date BETWEEN $2 AND $3;
 	`
 
-	err := db.pool.QueryRow(context.Background(), query, startDate, endDate).Scan(&totalProfit)
+	err := db.pool.QueryRow(context.Background(), query, articleName, startDate, endDate).Scan(&totalProfit)
 	if err != nil {
 		log.Printf("Error while get operations: %v", err)
 		return 0, err

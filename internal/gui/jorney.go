@@ -14,27 +14,32 @@ import (
 	"github.com/EmptyInsid/db_gui/internal/database"
 )
 
-func MainJorney(w fyne.Window, db database.Service) (*container.Split, error) {
+func MainJorney(w fyne.Window, db database.Service, role string) (*container.Split, error) {
 	table, err := BalanceTable(db)
 	if err != nil {
 		dialog.ShowError(err, w)
 	}
 
-	editor := AccordionJorney(w, db, table)
+	editor := AccordionJorney(w, db, table, role)
 
-	return GridViewer(db, table, editor), nil
+	return GridViewer(db, table, editor, role), nil
 }
 
-func AccordionJorney(w fyne.Window, db database.Service, table *widget.Table) *widget.Accordion {
+func AccordionJorney(w fyne.Window, db database.Service, table *widget.Table, role string) *widget.Accordion {
 	//accFilters := FiltersButtons(w, db, table)
 	accSums := SummariesAccord(w, db)
 	accEdit := EditAccord(w, db, table)
 
+	sumAccItem := widget.NewAccordionItem("Сводки", accSums)
+	editAccItem := widget.NewAccordionItem("Редактировать", accEdit)
+
 	editor := widget.NewAccordion(
-		//widget.NewAccordionItem("Фильтры", accFilters),
-		widget.NewAccordionItem("Сводки", accSums),
-		widget.NewAccordionItem("Редактировать", accEdit),
+		sumAccItem,
 	)
+	if role == "admin" {
+		editor.Append(editAccItem)
+	}
+
 	return editor
 }
 
@@ -57,73 +62,104 @@ func SummariesAccord(w fyne.Window, db database.Service) *fyne.Container {
 func WinGetProfit(w fyne.Window, db database.Service) *fyne.Container {
 	ctx := context.Background()
 
-	startDate := widget.NewEntry()
-	endDate := widget.NewEntry()
-	startDate.SetPlaceHolder("2024-07-01")
-	endDate.SetPlaceHolder("2024-07-21")
-	periodCont := container.NewStack(container.NewAdaptiveGrid(2, startDate, endDate))
-
-	fieldProfit := widget.NewLabel("0.00")
+	startDate, endDate := MadeDateFields()
+	article := widget.NewEntry()
+	article.SetPlaceHolder("продукты")
+	fieldProfit := widget.NewLabel("Доход: 0.00")
 
 	btnArtOp := widget.NewButton("Доход за период", func() {
+		if article.Text == "" {
+			dialog.ShowError(fmt.Errorf("Укажите статью!"), w)
+			return
+		}
 
-		profit, err := db.GetProfitByDate(ctx, startDate.Text, endDate.Text)
+		profit, err := db.GetProfitByDate(ctx, article.Text, startDate.Text, endDate.Text)
 		if err != nil {
 			dialog.ShowError(err, w)
 		}
 
-		fieldProfit.SetText(fmt.Sprintf("%2f", profit))
+		fieldProfit.SetText(fmt.Sprintf("Доход: %.2f", profit))
 
 	})
 
-	return container.NewVBox(periodCont, fieldProfit, btnArtOp)
+	periodCont := container.NewStack(container.NewAdaptiveGrid(
+		2,
+		widget.NewLabel("Начало периода:"),
+		startDate,
+		widget.NewLabel("Конец периода:"),
+		endDate,
+		widget.NewLabel("Статья:"),
+		article,
+		fieldProfit,
+	))
+
+	return container.NewVBox(periodCont, btnArtOp)
 }
 func WinGetCredit(w fyne.Window, db database.Service) *fyne.Container {
 	ctx := context.Background()
 
-	startDate := widget.NewEntry()
-	endDate := widget.NewEntry()
+	startDate, endDate := MadeDateFields()
 	article := widget.NewEntry()
-	startDate.SetPlaceHolder("2024-07-01")
-	endDate.SetPlaceHolder("2024-07-21")
-	article.SetPlaceHolder("статья")
-	periodCont := container.NewStack(container.NewAdaptiveGrid(2, startDate, endDate, article))
+	article.SetPlaceHolder("продукты")
 
-	fieldCredit := widget.NewLabel("0.00")
+	fieldCredit := widget.NewLabel("Расход: 0.00")
 
 	btnArtOp := widget.NewButton("Расход за период", func() {
+
+		if article.Text == "" {
+			dialog.ShowError(fmt.Errorf("Укажите статью!"), w)
+			return
+		}
 
 		credit, err := db.GetTotalCreditByArticleAndPeriod(ctx, article.Text, startDate.Text, endDate.Text)
 		if err != nil {
 			dialog.ShowError(err, w)
 		}
 
-		fieldCredit.SetText(fmt.Sprintf("%2f", credit))
+		fieldCredit.SetText(fmt.Sprintf("Расход: %.2f", credit))
 
 	})
 
-	return container.NewVBox(periodCont, fieldCredit, btnArtOp)
+	periodCont := container.NewStack(container.NewAdaptiveGrid(
+		2,
+		widget.NewLabel("Начало периода:"),
+		startDate,
+		widget.NewLabel("Конец периода:"),
+		endDate,
+		widget.NewLabel("Статья:"),
+		article,
+		fieldCredit,
+	))
+
+	return container.NewVBox(periodCont, btnArtOp)
 }
 func WinBalanceCount(w fyne.Window, db database.Service) *fyne.Container {
 	ctx := context.Background()
 
 	article := widget.NewEntry()
-	article.SetPlaceHolder("статья")
+	article.SetPlaceHolder("продукты")
 
-	fieldBalances := widget.NewLabel("0")
+	fieldBalances := widget.NewLabel("Количество балансов: 0")
 
 	btnArtOp := widget.NewButton("Количество балансов", func() {
+		if article.Text == "" {
+			dialog.ShowError(fmt.Errorf("Укажите статью!"), w)
+			return
+		}
 
 		balanceCount, err := db.GetBalanceCountByArticleName(ctx, article.Text)
 		if err != nil {
 			dialog.ShowError(err, w)
 		}
 
-		fieldBalances.SetText(fmt.Sprint(balanceCount))
+		fieldBalances.SetText(fmt.Sprintf("Количество балансов: %d", balanceCount))
 
 	})
 
-	return container.NewVBox(article, fieldBalances, btnArtOp)
+	commCont := container.NewAdaptiveGrid(
+		2, widget.NewLabel("Статья:"), article, fieldBalances)
+
+	return container.NewVBox(commCont, btnArtOp)
 }
 
 // РАЗДЕЛ РЕДАКТИРОВАНИЯ
@@ -137,13 +173,19 @@ func EditAccord(w fyne.Window, db database.Service, table *widget.Table) *fyne.C
 func WinCreateNewBalance(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
 
-	startDate := widget.NewEntry()
-	endDate := widget.NewEntry()
+	startDate, endDate := MadeDateFields()
+
 	minProf := widget.NewEntry()
-	startDate.SetPlaceHolder("2024-07-01")
-	endDate.SetPlaceHolder("2024-07-21")
 	minProf.SetPlaceHolder("100.0")
-	periodCont := container.NewStack(container.NewAdaptiveGrid(2, startDate, endDate, minProf))
+	periodCont := container.NewStack(container.NewAdaptiveGrid(
+		2,
+		widget.NewLabel("Начало периода:"),
+		startDate,
+		widget.NewLabel("Конец периода:"),
+		endDate,
+		widget.NewLabel("Минимальный профит:"),
+		minProf,
+	))
 
 	btnArtOp := widget.NewButton("Создать баланс", func() {
 
@@ -171,6 +213,8 @@ func WinDelBalance(w fyne.Window, db database.Service, table *widget.Table) *fyn
 	date := widget.NewEntry()
 	date.SetPlaceHolder("дата баланса")
 
+	periodCont := container.NewAdaptiveGrid(2, widget.NewLabel("Дата баланса:"), date)
+
 	btn := widget.NewButton("Удалить баланс", func() {
 
 		dialog.ShowConfirm(
@@ -189,7 +233,7 @@ func WinDelBalance(w fyne.Window, db database.Service, table *widget.Table) *fyn
 
 	})
 
-	return container.NewVBox(date, btn)
+	return container.NewVBox(periodCont, btn)
 }
 func WinDeleteUnprofitBalance(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()

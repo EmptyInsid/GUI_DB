@@ -25,9 +25,9 @@ type Service interface {
 	GetAllBalances(ctx context.Context) ([]models.Balance, error)     //журнал +
 	GetAllOperations(ctx context.Context) ([]models.Operation, error) //
 
-	GetProfitByDate(ctx context.Context, startDate, endDate string) (float64, error)                                         //журнал +
-	GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName string, startDate, finishDate string) (float64, error) //журнал +
-	GetBalanceCountByArticleName(ctx context.Context, articleName string) (int, error)                                       //журнал +
+	GetProfitByDate(ctx context.Context, startDate, articleName, endDate string) (float64, error)                     //журнал +
+	GetTotalCreditByArticleAndPeriod(ctx context.Context, articleName, startDate, finishDate string) (float64, error) //журнал +
+	GetBalanceCountByArticleName(ctx context.Context, articleName string) (int, error)                                //журнал +
 
 	GetUnusedArticles(ctx context.Context, startData, finishData string) ([]models.Article, error) //справочник статей
 	GetArticlesWithOperations(ctx context.Context) ([]ArticleWithOperations, error)                //справочник операций +

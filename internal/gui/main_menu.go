@@ -8,14 +8,14 @@ import (
 )
 
 func MainWindow(w fyne.Window, db database.Service, role string) {
-	MainMenu(w, db)
+	MainMenu(w, db, role)
 	emptyArea := container.NewStack()
 	w.Resize(fyne.NewSize(1000, 500))
 	w.CenterOnScreen()
 	w.SetContent(container.NewBorder(nil, nil, nil, nil, emptyArea))
 }
 
-func MainMenu(w fyne.Window, db database.Service) {
+func MainMenu(w fyne.Window, db database.Service, role string) {
 
 	reportFirst := fyne.NewMenuItem("Отчёт 1", func() {
 		cont, err := MainReportFirst(w, db)
@@ -42,7 +42,7 @@ func MainMenu(w fyne.Window, db database.Service) {
 	reportMenu := fyne.NewMenu("Отчёт", reportFirst, reportSecond, reportThird)
 
 	jorney := fyne.NewMenuItem("Балансы", func() {
-		jorneyContent, err := MainJorney(w, db)
+		jorneyContent, err := MainJorney(w, db, role)
 		if err != nil {
 			dialog.ShowError(err, w)
 		}
@@ -51,7 +51,7 @@ func MainMenu(w fyne.Window, db database.Service) {
 	jorneyMenu := fyne.NewMenu("Журнал", jorney)
 
 	dir := fyne.NewMenuItem("Справочник", func() {
-		dirContent, err := MainDir(w, db)
+		dirContent, err := MainDir(w, db, role)
 		if err != nil {
 			dialog.ShowError(err, w)
 		}

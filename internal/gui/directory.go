@@ -13,48 +13,22 @@ import (
 	"github.com/EmptyInsid/db_gui/internal/database"
 )
 
-func MainDir(w fyne.Window, db database.Service) (*fyne.Container, error) {
-	dirContent, err := TabsDir(w, db)
+func MainDir(w fyne.Window, db database.Service, role string) (*fyne.Container, error) {
+	dirContent, err := TabsDir(w, db, role)
 	if err != nil {
 		return nil, err
 	}
 	return container.NewStack(dirContent), nil
 }
 
-func ArticleViewer(w fyne.Window, db database.Service) (*container.Split, error) {
-	table, err := ArticleTable(db)
-	if err != nil {
-		return nil, err
-	}
-	editor, err := AccordionDirArticle(w, db, table)
-	if err != nil {
-		return nil, err
-	}
+func TabsDir(w fyne.Window, db database.Service, role string) (*container.AppTabs, error) {
 
-	return GridViewer(db, table, editor), nil
-}
-
-func OperationsViewer(w fyne.Window, db database.Service) (*container.Split, error) {
-	table, err := OperationsTable(db)
-	if err != nil {
-		return nil, err
-	}
-	editor, err := AccordionDirOper(w, db, table)
+	articleContent, err := ArticleViewer(w, db, role)
 	if err != nil {
 		return nil, err
 	}
 
-	return GridViewer(db, table, editor), nil
-}
-
-func TabsDir(w fyne.Window, db database.Service) (*container.AppTabs, error) {
-
-	articleContent, err := ArticleViewer(w, db)
-	if err != nil {
-		return nil, err
-	}
-
-	operContent, err := OperationsViewer(w, db)
+	operContent, err := OperationsViewer(w, db, role)
 	if err != nil {
 		return nil, err
 	}
@@ -65,6 +39,40 @@ func TabsDir(w fyne.Window, db database.Service) (*container.AppTabs, error) {
 	tab := container.NewAppTabs(article, operations)
 	tab.SetTabLocation(container.TabLocationTop)
 	return tab, nil
+}
+
+func ArticleViewer(w fyne.Window, db database.Service, role string) (*container.Split, error) {
+	table, err := ArticleTable(db)
+	if err != nil {
+		return nil, err
+	}
+	editor, err := AccordionDirArticle(w, db, table)
+	if err != nil {
+		return nil, err
+	}
+
+	if role != "admin" {
+		editor.Hide()
+	}
+
+	return GridViewer(db, table, editor, role), nil
+}
+
+func OperationsViewer(w fyne.Window, db database.Service, role string) (*container.Split, error) {
+	table, err := OperationsTable(db)
+	if err != nil {
+		return nil, err
+	}
+	editor, err := AccordionDirOper(w, db, table)
+	if err != nil {
+		return nil, err
+	}
+
+	if role != "admin" {
+		editor.Hide()
+	}
+
+	return GridViewer(db, table, editor, role), nil
 }
 
 // СПИСОК ДЕЙСТВИЙ ДЛЯ СТАТЕЙ
@@ -92,6 +100,8 @@ func WinAddArticle(w fyne.Window, db database.Service, table *widget.Table) *fyn
 	article := widget.NewEntry()
 	article.SetPlaceHolder("статья")
 
+	cont := container.NewAdaptiveGrid(2, widget.NewLabel("Статья"), article)
+
 	btn := widget.NewButton("Добавить статью", func() {
 
 		err := db.AddArticle(ctx, article.Text)
@@ -108,7 +118,7 @@ func WinAddArticle(w fyne.Window, db database.Service, table *widget.Table) *fyn
 
 	})
 
-	return container.NewVBox(article, btn)
+	return container.NewVBox(cont, btn)
 }
 
 // РАЗДЕЛ РЕДАКТИРОВАТЬ СТАТЬЮ
@@ -121,9 +131,15 @@ func WinEditArticle(w fyne.Window, db database.Service, table *widget.Table) *fy
 
 	oldName := widget.NewEntry()
 	newName := widget.NewEntry()
-	oldName.SetPlaceHolder("старое имя")
-	newName.SetPlaceHolder("новое имя")
-	fieldsCont := container.NewStack(container.NewAdaptiveGrid(2, oldName, newName))
+	oldName.SetPlaceHolder("продукты")
+	newName.SetPlaceHolder("еда")
+	fieldsCont := container.NewStack(container.NewAdaptiveGrid(
+		2,
+		widget.NewLabel("Старое имя"),
+		oldName,
+		widget.NewLabel("Новое имя"),
+		newName,
+	))
 
 	btn := widget.NewButton("Изменить имя", func() {
 
@@ -152,7 +168,9 @@ func WinDelArticle(w fyne.Window, db database.Service, table *widget.Table) *fyn
 	ctx := context.Background()
 
 	article := widget.NewEntry()
-	article.SetPlaceHolder("статья")
+	article.SetPlaceHolder("продукты")
+
+	cont := container.NewAdaptiveGrid(2, widget.NewLabel("Статья"), article)
 
 	btn := widget.NewButton("Удалить статью", func() {
 
@@ -169,7 +187,7 @@ func WinDelArticle(w fyne.Window, db database.Service, table *widget.Table) *fyn
 
 	})
 
-	return container.NewVBox(article, btn)
+	return container.NewVBox(cont, btn)
 }
 
 // СПИСОК ДЕЙСТВИЙ ДЛЯ ОПЕРАЦИЙ
@@ -199,12 +217,18 @@ func WinAddOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 	debit := widget.NewEntry()
 	credit := widget.NewEntry()
 
-	article.SetPlaceHolder("статья")
-	date.SetPlaceHolder("дата")
-	debit.SetPlaceHolder("доход")
-	credit.SetPlaceHolder("расход")
+	article.SetPlaceHolder("продукты")
+	date.SetPlaceHolder("2024-11-03")
+	debit.SetPlaceHolder("0")
+	credit.SetPlaceHolder("1000")
 
-	сont := container.NewStack(container.NewAdaptiveGrid(2, article, date, debit, credit))
+	cont := container.NewAdaptiveGrid(
+		2,
+		widget.NewLabel("Статья"), article,
+		widget.NewLabel("Дата"), date,
+		widget.NewLabel("Доход"), debit,
+		widget.NewLabel("расход"), credit,
+	)
 
 	btn := widget.NewButton("Добавить операцию", func() {
 
@@ -232,7 +256,7 @@ func WinAddOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 
 	})
 
-	return container.NewVBox(сont, btn)
+	return container.NewVBox(cont, btn)
 }
 
 // РАЗДЕЛ РЕДАКТИРОВАТЬ ОПЕРАЦИЮ
@@ -249,12 +273,18 @@ func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *
 	debit := widget.NewEntry()
 	credit := widget.NewEntry()
 
-	id.SetPlaceHolder("id")
-	article.SetPlaceHolder("статья")
-	debit.SetPlaceHolder("доход")
-	credit.SetPlaceHolder("расход")
+	id.SetPlaceHolder("66")
+	article.SetPlaceHolder("кофейня")
+	debit.SetPlaceHolder("0")
+	credit.SetPlaceHolder("666")
 
-	сont := container.NewStack(container.NewAdaptiveGrid(2, id, article, debit, credit))
+	cont := container.NewAdaptiveGrid(
+		2,
+		widget.NewLabel("ID операции"), id,
+		widget.NewLabel("Статья"), article,
+		widget.NewLabel("Доход"), debit,
+		widget.NewLabel("расход"), credit,
+	)
 
 	btn := widget.NewButton("Изменить операцию", func() {
 
@@ -287,16 +317,21 @@ func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *
 
 	})
 
-	return container.NewVBox(сont, btn)
+	return container.NewVBox(cont, btn)
 }
 func WinIncreaseOperation(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
 
 	article := widget.NewEntry()
 	amount := widget.NewEntry()
-	article.SetPlaceHolder("название статьи")
-	amount.SetPlaceHolder("сумма повышения")
-	сont := container.NewStack(container.NewAdaptiveGrid(1, article, amount))
+	article.SetPlaceHolder("развлечения")
+	amount.SetPlaceHolder("100")
+
+	cont := container.NewAdaptiveGrid(
+		2,
+		widget.NewLabel("Статья"), article,
+		widget.NewLabel("Сумма повышения"), amount,
+	)
 
 	btn := widget.NewButton("Повысить расходы по статье", func() {
 
@@ -318,7 +353,7 @@ func WinIncreaseOperation(w fyne.Window, db database.Service, table *widget.Tabl
 
 	})
 
-	return container.NewVBox(сont, btn)
+	return container.NewVBox(cont, btn)
 }
 
 // РАЗДЕЛ УДАЛЕНИЯ ОПЕРАЦИЮ
@@ -332,7 +367,12 @@ func WinDelOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 	id := widget.NewEntry()
 	id.SetPlaceHolder("id")
 
-	btn := widget.NewButton("Удалить статью", func() {
+	cont := container.NewAdaptiveGrid(
+		2,
+		widget.NewLabel("ID операции"), id,
+	)
+
+	btn := widget.NewButton("Удалить операцию", func() {
 
 		intId, err := strconv.ParseInt(id.Text, 0, 0)
 		if err != nil {
@@ -352,5 +392,5 @@ func WinDelOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 
 	})
 
-	return container.NewVBox(id, btn)
+	return container.NewVBox(cont, btn)
 }
