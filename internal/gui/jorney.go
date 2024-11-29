@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"strconv"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -17,7 +18,7 @@ import (
 func MainJorney(w fyne.Window, db database.Service, role string) (*container.Split, error) {
 	table, err := BalanceTable(db)
 	if err != nil {
-		dialog.ShowError(err, w)
+		dialog.ShowError(ErrGetBalance, w)
 	}
 
 	editor := AccordionJorney(w, db, table, role)
@@ -69,13 +70,13 @@ func WinGetProfit(w fyne.Window, db database.Service) *fyne.Container {
 
 	btnArtOp := widget.NewButton("Доход за период", func() {
 		if article.Text == "" {
-			dialog.ShowError(fmt.Errorf("Укажите статью!"), w)
+			dialog.ShowError(ErrEmptyArt, w)
 			return
 		}
 
 		profit, err := db.GetProfitByDate(ctx, article.Text, startDate.Text, endDate.Text)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrGetProfit, w)
 		}
 
 		fieldProfit.SetText(fmt.Sprintf("Доход: %.2f", profit))
@@ -107,13 +108,13 @@ func WinGetCredit(w fyne.Window, db database.Service) *fyne.Container {
 	btnArtOp := widget.NewButton("Расход за период", func() {
 
 		if article.Text == "" {
-			dialog.ShowError(fmt.Errorf("Укажите статью!"), w)
+			dialog.ShowError(ErrEmptyArt, w)
 			return
 		}
 
 		credit, err := db.GetTotalCreditByArticleAndPeriod(ctx, article.Text, startDate.Text, endDate.Text)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrGetTotalCredit, w)
 		}
 
 		fieldCredit.SetText(fmt.Sprintf("Расход: %.2f", credit))
@@ -143,13 +144,13 @@ func WinBalanceCount(w fyne.Window, db database.Service) *fyne.Container {
 
 	btnArtOp := widget.NewButton("Количество балансов", func() {
 		if article.Text == "" {
-			dialog.ShowError(fmt.Errorf("Укажите статью!"), w)
+			dialog.ShowError(ErrEmptyArt, w)
 			return
 		}
 
 		balanceCount, err := db.GetBalanceCountByArticleName(ctx, article.Text)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrGetBalanceCount, w)
 		}
 
 		fieldBalances.SetText(fmt.Sprintf("Количество балансов: %d", balanceCount))
@@ -173,14 +174,12 @@ func EditAccord(w fyne.Window, db database.Service, table *widget.Table) *fyne.C
 func WinCreateNewBalance(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
 	ctx := context.Background()
 
-	startDate, endDate := MadeDateFields()
+	_, endDate := MadeDateFields()
 
 	minProf := widget.NewEntry()
 	minProf.SetPlaceHolder("100.0")
 	periodCont := container.NewStack(container.NewAdaptiveGrid(
-		2,
-		widget.NewLabel("Начало периода:"),
-		startDate,
+		1,
 		widget.NewLabel("Конец периода:"),
 		endDate,
 		widget.NewLabel("Минимальный профит:"),
@@ -191,17 +190,32 @@ func WinCreateNewBalance(w fyne.Window, db database.Service, table *widget.Table
 
 		floatMinProf, err := strconv.ParseFloat(minProf.Text, 64)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrParseDebit, w)
 		}
 
-		err = db.CreateBalanceIfProfitable(ctx, startDate.Text, endDate.Text, floatMinProf)
+		date, err := time.Parse("2006-01-02", endDate.Text)
 		if err != nil {
-			dialog.ShowError(err, w)
+			fmt.Println("Ошибка парсинга даты:", err)
+			return
+		}
+
+		// Проверяем, является ли дата концом месяца
+		if !isEndOfMonth(date) {
+			dialog.ShowError(ErrCreateBalanceDate, w)
+			return
+		}
+
+		// Получаем начало месяца
+		startOfMonth := getStartOfMonth(date)
+
+		err = db.CreateBalanceIfProfitable(ctx, startOfMonth.Format("2006-01-02"), endDate.Text, floatMinProf)
+		if err != nil {
+			dialog.ShowError(ErrCreateBalance, w)
 		} else {
 			dialog.ShowInformation("Создать баланс", "Новый баланс создан успешно!", w)
 		}
 		if err := UpdateBalanceTable(db, table); err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdBalance, w)
 		}
 	})
 
@@ -223,10 +237,10 @@ func WinDelBalance(w fyne.Window, db database.Service, table *widget.Table) *fyn
 			func(bool) {
 				err := db.DeleteBalance(ctx, date.Text)
 				if err != nil {
-					dialog.ShowError(err, w)
+					dialog.ShowError(ErrDelBalance, w)
 				}
 				if err := UpdateBalanceTable(db, table); err != nil {
-					dialog.ShowError(err, w)
+					dialog.ShowError(ErrUpdBalance, w)
 				}
 			},
 			w)
@@ -246,10 +260,10 @@ func WinDeleteUnprofitBalance(w fyne.Window, db database.Service, table *widget.
 			func(bool) {
 				err := db.DeleteMostUnprofitableBalance(ctx)
 				if err != nil {
-					dialog.ShowError(err, w)
+					dialog.ShowError(ErrDelMinBalance, w)
 				}
 				if err := UpdateBalanceTable(db, table); err != nil {
-					dialog.ShowError(err, w)
+					dialog.ShowError(ErrUpdBalance, w)
 				}
 			},
 			w)

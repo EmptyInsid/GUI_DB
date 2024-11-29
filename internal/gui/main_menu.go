@@ -20,21 +20,21 @@ func MainMenu(w fyne.Window, db database.Service, role string) {
 	reportFirst := fyne.NewMenuItem("Отчёт 1", func() {
 		cont, err := MainReportFirst(w, db)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrReport, w)
 		}
 		w.SetContent(cont)
 	})
 	reportSecond := fyne.NewMenuItem("Отчёт 2", func() {
 		cont, err := MainReportSecond(w, db)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrReport, w)
 		}
 		w.SetContent(cont)
 	})
 	reportThird := fyne.NewMenuItem("Отчёт 3", func() {
 		cont, err := MainReportThird(w, db)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrReport, w)
 		}
 		w.SetContent(cont)
 	})
@@ -44,7 +44,7 @@ func MainMenu(w fyne.Window, db database.Service, role string) {
 	jorney := fyne.NewMenuItem("Балансы", func() {
 		jorneyContent, err := MainJorney(w, db, role)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrShowJorney, w)
 		}
 		w.SetContent(jorneyContent)
 	})
@@ -53,7 +53,7 @@ func MainMenu(w fyne.Window, db database.Service, role string) {
 	dir := fyne.NewMenuItem("Справочник", func() {
 		dirContent, err := MainDir(w, db, role)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrShowDir, w)
 		}
 		w.SetContent(dirContent)
 	})

@@ -47,7 +47,7 @@ func AuthForm(w fyne.Window, db database.Service) {
 		_, role, err := auth.AuthenticateUser(db, ctx, login.Text, password.Text)
 		if err != nil {
 			log.Printf("Failed to fetch user names: %v", err)
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrAuth, w)
 			return
 		}
 

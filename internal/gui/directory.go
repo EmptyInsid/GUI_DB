@@ -106,14 +106,14 @@ func WinAddArticle(w fyne.Window, db database.Service, table *widget.Table) *fyn
 
 		err := db.AddArticle(ctx, article.Text)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrAddArt, w)
 		} else {
 			dialog.ShowInformation("Добавить статью", "Новая статья успешно добавлена!", w)
 		}
 
 		err = UpdateArticleTable(db, table)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdArt, w)
 		}
 
 	})
@@ -145,13 +145,13 @@ func WinEditArticle(w fyne.Window, db database.Service, table *widget.Table) *fy
 
 		err := db.UpdateArticle(ctx, oldName.Text, newName.Text)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdArtName, w)
 		} else {
 			dialog.ShowInformation("Изменить имя", "Название статьи успешно изменено!", w)
 		}
 		err = UpdateArticleTable(db, table)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdArt, w)
 		}
 
 	})
@@ -176,13 +176,13 @@ func WinDelArticle(w fyne.Window, db database.Service, table *widget.Table) *fyn
 
 		err := db.DeleteArticle(ctx, article.Text)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrDelArt, w)
 		} else {
 			dialog.ShowInformation("Удалить статью", "Сатья успешно удалена!", w)
 		}
 		err = UpdateArticleTable(db, table)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdArt, w)
 		}
 
 	})
@@ -234,24 +234,24 @@ func WinAddOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 
 		floatDebit, err := strconv.ParseFloat(debit.Text, 64)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrParseDebit, w)
 		}
 
 		floatCredit, err := strconv.ParseFloat(credit.Text, 64)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrParseCredit, w)
 		}
 
 		err = db.AddOperation(ctx, article.Text, floatDebit, floatCredit, date.Text)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrAddOp, w)
 		} else {
 			dialog.ShowInformation("Добавить операцию", "Новая операция успешно добавлена!", w)
 		}
 
 		err = UpdateOperationTable(db, table)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdOp, w)
 		}
 
 	})
@@ -290,29 +290,29 @@ func WinEditOperation(w fyne.Window, db database.Service, table *widget.Table) *
 
 		intId, err := strconv.ParseInt(id.Text, 0, 0)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrParseId, w)
 		}
 
 		floatDebit, err := strconv.ParseFloat(debit.Text, 64)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrParseDebit, w)
 		}
 
 		floatCredit, err := strconv.ParseFloat(credit.Text, 64)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrParseCredit, w)
 		}
 
 		err = db.UpdateOpertions(ctx, int(intId), article.Text, floatDebit, floatCredit)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdOpData, w)
 		} else {
 			dialog.ShowInformation("Изменить операцию", "Операция успешно изменена!", w)
 		}
 
 		err = UpdateOperationTable(db, table)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdOp, w)
 		}
 
 	})
@@ -337,18 +337,18 @@ func WinIncreaseOperation(w fyne.Window, db database.Service, table *widget.Tabl
 
 		floatAmount, err := strconv.ParseFloat(amount.Text, 64)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrParseAmount, w)
 		}
 
 		err = db.IncreaseExpensesForArticle(ctx, article.Text, floatAmount)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrIncArtCredit, w)
 		} else {
 			dialog.ShowInformation("Повысить расходы по статье", "Расход по статье успешно изменён!", w)
 		}
 		err = UpdateOperationTable(db, table)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdOp, w)
 		}
 
 	})
@@ -376,18 +376,18 @@ func WinDelOperation(w fyne.Window, db database.Service, table *widget.Table) *f
 
 		intId, err := strconv.ParseInt(id.Text, 0, 0)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrParseId, w)
 		}
 
 		err = db.DeleteOperation(ctx, int(intId))
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrDelOp, w)
 		} else {
 			dialog.ShowInformation("Удалить операцию", "Операция успешно удалена", w)
 		}
 		err = UpdateOperationTable(db, table)
 		if err != nil {
-			dialog.ShowError(err, w)
+			dialog.ShowError(ErrUpdOp, w)
 		}
 
 	})

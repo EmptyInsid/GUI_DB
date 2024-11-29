@@ -70,7 +70,7 @@ func (db *Database) AddArticle(ctx context.Context, name string) error {
 	}
 	defer tx.Rollback(context.Background())
 
-	if _, err := db.pool.Exec(ctx, "INSERT INTO articles(name) VALUES ($1)", name); err != nil {
+	if _, err := tx.Exec(ctx, "INSERT INTO articles(name) VALUES ($1)", name); err != nil {
 		log.Printf("Error while insert article: %v\n", err)
 		return err
 	}
@@ -94,7 +94,7 @@ func (db *Database) UpdateArticle(ctx context.Context, oldName, newName string) 
 
 	if commandTag.RowsAffected() == 0 {
 		log.Printf("Error no articles found with name: %s", oldName)
-		return fmt.Errorf("error no articles found with name: %s", oldName)
+		return ErrEmptyRow
 	}
 
 	return nil
@@ -111,10 +111,14 @@ func (db *Database) DeleteArticle(ctx context.Context, articleName string) error
 
 	// Delete the article
 	deleteArticleQuery := `DELETE FROM articles WHERE name = $1;`
-	_, err = tx.Exec(ctx, deleteArticleQuery, articleName)
+	commandTag, err := tx.Exec(ctx, deleteArticleQuery, articleName)
 	if err != nil {
 		log.Printf("Error deleting article %v", err)
 		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		log.Printf("Error no articles found with name: %s", articleName)
+		return ErrEmptyRow
 	}
 
 	if err = tx.Commit(ctx); err != nil {
@@ -600,7 +604,7 @@ func (db *Database) UpdateOpertions(ctx context.Context, id int, articleName str
 	WHERE id = $5
 	`
 
-	commandTag, err := db.pool.Exec(ctx, query, articleName, debit, credit, id)
+	commandTag, err := tx.Exec(ctx, query, articleName, debit, credit, id)
 
 	if err != nil {
 		log.Printf("Error failed to update operation name: %v", err)
@@ -648,10 +652,14 @@ func (db *Database) DeleteBalance(ctx context.Context, date string) error {
 	}
 
 	query := `DELETE FROM balance WHERE create_date = $1`
-	_, err = tx.Exec(ctx, query, date)
+	commandTag, err := tx.Exec(ctx, query, date)
 	if err != nil {
 		log.Printf("Error deleting balance %v", err)
 		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		log.Printf("Error no balances found with date: %s", date)
+		return ErrEmptyRow
 	}
 	if err := tx.Commit(ctx); err != nil {
 		log.Printf("Error commit transaction: %v\n", err)
