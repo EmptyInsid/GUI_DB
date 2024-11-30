@@ -13,10 +13,10 @@ import (
 )
 
 // первое окно входа
-func LoginMenu(w fyne.Window, db database.Service) {
+func LoginMenu(myApp fyne.App, w fyne.Window, db database.Service) {
 	btnLogin := widget.NewButton("Войти", func() {
 		log.Println("User clicked 'Войти'")
-		AuthForm(w, db)
+		AuthForm(myApp, w, db)
 	})
 
 	// btnRegistr := widget.NewButton("Зарегистрироваться", func() {
@@ -29,7 +29,7 @@ func LoginMenu(w fyne.Window, db database.Service) {
 }
 
 // форма входа
-func AuthForm(w fyne.Window, db database.Service) {
+func AuthForm(myApp fyne.App, w fyne.Window, db database.Service) {
 	login := widget.NewEntry()
 	password := widget.NewPasswordEntry()
 
@@ -51,7 +51,7 @@ func AuthForm(w fyne.Window, db database.Service) {
 			return
 		}
 
-		MainWindow(w, db, role)
+		MainWindow(myApp, w, db, role)
 	}
 
 	form.CancelText = "Отмена"

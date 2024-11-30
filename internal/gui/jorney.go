@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image/color"
 	"strconv"
@@ -27,7 +28,6 @@ func MainJorney(w fyne.Window, db database.Service, role string) (*container.Spl
 }
 
 func AccordionJorney(w fyne.Window, db database.Service, table *widget.Table, role string) *widget.Accordion {
-	//accFilters := FiltersButtons(w, db, table)
 	accSums := SummariesAccord(w, db)
 	accEdit := EditAccord(w, db, table)
 
@@ -44,14 +44,6 @@ func AccordionJorney(w fyne.Window, db database.Service, table *widget.Table, ro
 	return editor
 }
 
-func FiltersButtons(w fyne.Window, db database.Service, table *widget.Table) *fyne.Container {
-	btnProfit := widget.NewButton("Баланс по дате", func() {
-		dialog.ShowInformation("Баланс по дате формирования", "Здесь возможно будет баланс по дате", w)
-	})
-
-	return container.NewVBox(canvas.NewLine(color.White), btnProfit)
-}
-
 // РАЗДЕЛ СВОДОК
 func SummariesAccord(w fyne.Window, db database.Service) *fyne.Container {
 	winProfit := WinGetProfit(w, db)
@@ -60,21 +52,27 @@ func SummariesAccord(w fyne.Window, db database.Service) *fyne.Container {
 
 	return container.NewVBox(canvas.NewLine(color.White), winProfit, canvas.NewLine(color.White), winCredit, canvas.NewLine(color.White), winBalance)
 }
+
 func WinGetProfit(w fyne.Window, db database.Service) *fyne.Container {
 	ctx := context.Background()
 
 	startDate, endDate := MadeDateFields()
-	article := widget.NewEntry()
-	article.SetPlaceHolder("продукты")
+	article := MadeSelectArticle(w, db)
+
 	fieldProfit := widget.NewLabel("Доход: 0.00")
 
 	btnArtOp := widget.NewButton("Доход за период", func() {
-		if article.Text == "" {
+		if article.Selected == "" {
 			dialog.ShowError(ErrEmptyArt, w)
 			return
 		}
 
-		profit, err := db.GetProfitByDate(ctx, article.Text, startDate.Text, endDate.Text)
+		if err := CompareDate(startDate.Text, endDate.Text); err != nil {
+			dialog.ShowError(ErrEndLessStart, w)
+			return
+		}
+
+		profit, err := db.GetProfitByDate(ctx, article.Selected, startDate.Text, endDate.Text)
 		if err != nil {
 			dialog.ShowError(ErrGetProfit, w)
 		}
@@ -100,19 +98,22 @@ func WinGetCredit(w fyne.Window, db database.Service) *fyne.Container {
 	ctx := context.Background()
 
 	startDate, endDate := MadeDateFields()
-	article := widget.NewEntry()
-	article.SetPlaceHolder("продукты")
+	article := MadeSelectArticle(w, db)
 
 	fieldCredit := widget.NewLabel("Расход: 0.00")
-
 	btnArtOp := widget.NewButton("Расход за период", func() {
 
-		if article.Text == "" {
+		if article.Selected == "" {
 			dialog.ShowError(ErrEmptyArt, w)
 			return
 		}
 
-		credit, err := db.GetTotalCreditByArticleAndPeriod(ctx, article.Text, startDate.Text, endDate.Text)
+		if err := CompareDate(startDate.Text, endDate.Text); err != nil {
+			dialog.ShowError(ErrEndLessStart, w)
+			return
+		}
+
+		credit, err := db.GetTotalCreditByArticleAndPeriod(ctx, article.Selected, startDate.Text, endDate.Text)
 		if err != nil {
 			dialog.ShowError(ErrGetTotalCredit, w)
 		}
@@ -137,18 +138,17 @@ func WinGetCredit(w fyne.Window, db database.Service) *fyne.Container {
 func WinBalanceCount(w fyne.Window, db database.Service) *fyne.Container {
 	ctx := context.Background()
 
-	article := widget.NewEntry()
-	article.SetPlaceHolder("продукты")
+	article := MadeSelectArticle(w, db)
 
 	fieldBalances := widget.NewLabel("Количество балансов: 0")
 
 	btnArtOp := widget.NewButton("Количество балансов", func() {
-		if article.Text == "" {
+		if article.Selected == "" {
 			dialog.ShowError(ErrEmptyArt, w)
 			return
 		}
 
-		balanceCount, err := db.GetBalanceCountByArticleName(ctx, article.Text)
+		balanceCount, err := db.GetBalanceCountByArticleName(ctx, article.Selected)
 		if err != nil {
 			dialog.ShowError(ErrGetBalanceCount, w)
 		}
@@ -188,14 +188,9 @@ func WinCreateNewBalance(w fyne.Window, db database.Service, table *widget.Table
 
 	btnArtOp := widget.NewButton("Создать баланс", func() {
 
-		floatMinProf, err := strconv.ParseFloat(minProf.Text, 64)
-		if err != nil {
-			dialog.ShowError(ErrParseDebit, w)
-		}
-
 		date, err := time.Parse("2006-01-02", endDate.Text)
 		if err != nil {
-			fmt.Println("Ошибка парсинга даты:", err)
+			dialog.ShowError(ErrParseDate, w)
 			return
 		}
 
@@ -205,12 +200,22 @@ func WinCreateNewBalance(w fyne.Window, db database.Service, table *widget.Table
 			return
 		}
 
+		floatMinProf, err := strconv.ParseFloat(minProf.Text, 64)
+		if err != nil {
+			dialog.ShowError(ErrParseDebit, w)
+			return
+		}
 		// Получаем начало месяца
 		startOfMonth := getStartOfMonth(date)
 
 		err = db.CreateBalanceIfProfitable(ctx, startOfMonth.Format("2006-01-02"), endDate.Text, floatMinProf)
 		if err != nil {
+			if errors.Is(err, database.ErrLessThenMin) {
+				dialog.ShowError(ErrMinBalanceProfit, w)
+				return
+			}
 			dialog.ShowError(ErrCreateBalance, w)
+			return
 		} else {
 			dialog.ShowInformation("Создать баланс", "Новый баланс создан успешно!", w)
 		}
@@ -238,9 +243,11 @@ func WinDelBalance(w fyne.Window, db database.Service, table *widget.Table) *fyn
 				err := db.DeleteBalance(ctx, date.Text)
 				if err != nil {
 					dialog.ShowError(ErrDelBalance, w)
+					return
 				}
 				if err := UpdateBalanceTable(db, table); err != nil {
 					dialog.ShowError(ErrUpdBalance, w)
+					return
 				}
 			},
 			w)

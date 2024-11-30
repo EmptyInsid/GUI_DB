@@ -474,8 +474,8 @@ func IncomeExpenseDynamicsTable(db database.Service, articles []string, startDat
 
 	table.SetColumnWidth(0, widget.NewLabel("Number").MinSize().Width)
 	table.SetColumnWidth(1, widget.NewLabel("2024-11-01 50").MinSize().Width)
-	table.SetColumnWidth(2, widget.NewLabel("10000000 50").MinSize().Width)
-	table.SetColumnWidth(3, widget.NewLabel("10000000 50").MinSize().Width)
+	table.SetColumnWidth(2, widget.NewLabel("10000000 5000000").MinSize().Width)
+	table.SetColumnWidth(3, widget.NewLabel("10000000 5000000").MinSize().Width)
 
 	return table, nil
 }
@@ -526,10 +526,10 @@ func FinancialPercentagesTable(db database.Service, articles []string, flow, sta
 
 	table.SetColumnWidth(0, widget.NewLabel("Number").MinSize().Width)
 	table.SetColumnWidth(1, widget.NewLabel("very very wide content").MinSize().Width)
-	table.SetColumnWidth(2, widget.NewLabel("10000000 50").MinSize().Width)
-	table.SetColumnWidth(3, widget.NewLabel("10000000 50").MinSize().Width)
-	table.SetColumnWidth(4, widget.NewLabel("10000000 50").MinSize().Width)
-	table.SetColumnWidth(5, widget.NewLabel("10000000 50").MinSize().Width)
+	table.SetColumnWidth(2, widget.NewLabel("10000000 5000000").MinSize().Width)
+	table.SetColumnWidth(3, widget.NewLabel("10000000 5000000").MinSize().Width)
+	table.SetColumnWidth(4, widget.NewLabel("10000000 5000000").MinSize().Width)
+	table.SetColumnWidth(5, widget.NewLabel("10000000 5000000").MinSize().Width)
 
 	return table, nil
 }

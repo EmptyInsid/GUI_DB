@@ -70,9 +70,14 @@ func (db *Database) AddArticle(ctx context.Context, name string) error {
 	}
 	defer tx.Rollback(context.Background())
 
-	if _, err := tx.Exec(ctx, "INSERT INTO articles(name) VALUES ($1)", name); err != nil {
+	commandTag, err := tx.Exec(ctx, "INSERT INTO articles(name) VALUES ($1)", name)
+	if err != nil {
 		log.Printf("Error while insert article: %v\n", err)
 		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		log.Printf("Error - nothing was insert")
+		return ErrEmptyRow
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -195,7 +200,7 @@ func (db *Database) GetTotalCreditByArticleAndPeriod(ctx context.Context, articl
 	if profit != nil {
 		return *profit, nil
 	} else {
-		return 0, nil
+		return 0, ErrGetCredit
 	}
 }
 
@@ -226,7 +231,7 @@ func (db *Database) CreateBalanceIfProfitable(ctx context.Context, startDate, en
 	profit := totalDebit - totalCredit
 	if profit < minProfit {
 		log.Printf("Error profit (%f) is less than the minimum required (%f)", profit, minProfit)
-		return err
+		return ErrLessThenMin
 	}
 
 	// Insert balance
@@ -280,10 +285,14 @@ func (db *Database) DeleteMostUnprofitableBalance(ctx context.Context) error {
 	    LIMIT 1
 	);
 	`
-	_, err = tx.Exec(ctx, deleteBalanceQuery)
+	commandTag, err := tx.Exec(ctx, deleteBalanceQuery)
 	if err != nil {
 		log.Printf("Error deleting the most unprofitable balance: %v", err)
 		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		log.Printf("Nothing balance to delete.")
+		return ErrEmptyRow
 	}
 
 	if err = tx.Commit(ctx); err != nil {
@@ -341,7 +350,7 @@ func (db *Database) GetArticlesWithOperations(ctx context.Context) ([]ArticleWit
 	ON 
 		articles.id = operations.article_id
 	ORDER BY 
-		operations.id;
+		operations.create_date;
 	`
 
 	rows, err := db.pool.Query(ctx, query)
@@ -375,10 +384,9 @@ func (db *Database) GetArticlesWithOperations(ctx context.Context) ([]ArticleWit
 
 // Посчитать прибыль за заданную дату
 func (db *Database) GetProfitByDate(ctx context.Context, articleName, startDate, endDate string) (float64, error) {
-	var totalProfit float64
 
 	query := `
-		SELECT COALESCE(SUM(o.debit - o.credit), 0)
+		SELECT COALESCE(SUM(o.debit), 0)
 	FROM operations o
 	JOIN articles a ON o.article_id = a.id
 	JOIN balance b ON o.balance_id = b.id
@@ -386,13 +394,17 @@ func (db *Database) GetProfitByDate(ctx context.Context, articleName, startDate,
 	  AND b.create_date BETWEEN $2 AND $3;
 	`
 
-	err := db.pool.QueryRow(context.Background(), query, articleName, startDate, endDate).Scan(&totalProfit)
-	if err != nil {
+	var totalProfit *float64
+
+	if err := db.pool.QueryRow(context.Background(), query, articleName, startDate, endDate).Scan(&totalProfit); err != nil {
 		log.Printf("Error while get operations: %v", err)
 		return 0, err
 	}
-
-	return totalProfit, nil
+	if totalProfit != nil {
+		return *totalProfit, nil
+	} else {
+		return 0, ErrGetProfit
+	}
 }
 
 // Добавить операцию в рамках статьи
@@ -438,37 +450,15 @@ func (db *Database) IncreaseExpensesForArticle(ctx context.Context, articleName 
 	WHERE o.article_id = a.id
 	AND a.name = $2;
 	`
-	_, err = tx.Exec(ctx, updateOperationsQuery, increaseAmount, articleName)
+	commandTag, err := tx.Exec(ctx, updateOperationsQuery, increaseAmount, articleName)
 	if err != nil {
 		log.Printf("Error upgrading operations: %v", err)
 		return err
 	}
 
-	// Recalculate balances
-	updateBalancesQuery := `
-	UPDATE balance b
-	SET debit = (
-	        SELECT SUM(o.debit)
-	        FROM operations o
-	        WHERE o.balance_id = b.id
-	    ),
-	    credit = (
-	        SELECT SUM(o.credit)
-	        FROM operations o
-	        WHERE o.balance_id = b.id
-	    ),
-	    amount = debit - credit
-	WHERE b.id IN (
-	    SELECT DISTINCT o.balance_id
-	    FROM operations o
-	    JOIN articles a ON o.article_id = a.id
-	    WHERE a.name = $2
-	);
-	`
-	_, err = tx.Exec(ctx, updateBalancesQuery, articleName)
-	if err != nil {
-		log.Printf("Error updating balances: %v", err)
-		return err
+	if commandTag.RowsAffected() == 0 {
+		log.Printf("Error nothing upd")
+		return ErrEmptyRow
 	}
 
 	if err = tx.Commit(ctx); err != nil {
@@ -600,20 +590,20 @@ func (db *Database) UpdateOpertions(ctx context.Context, id int, articleName str
 	SET 
 		article_id = (SELECT DISTINCT id FROM articles WHERE articles.name = $1),
 		debit = $2,
-		credit = $3,
-	WHERE id = $5
+		credit = $3
+	WHERE id = $4
 	`
 
 	commandTag, err := tx.Exec(ctx, query, articleName, debit, credit, id)
 
 	if err != nil {
-		log.Printf("Error failed to update operation name: %v", err)
+		log.Printf("Error failed to update operation: %v", err)
 		return err
 	}
 
 	if commandTag.RowsAffected() == 0 {
 		log.Printf("Error no operation found with id: %d", id)
-		return fmt.Errorf("error no operation found with id: %d", id)
+		return ErrEmptyRow
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -632,10 +622,14 @@ func (db *Database) DeleteOperation(ctx context.Context, id int) error {
 	}
 
 	query := `DELETE FROM operations WHERE id = $1`
-	_, err = tx.Exec(ctx, query, id)
+	commandTag, err := tx.Exec(ctx, query, id)
 	if err != nil {
 		log.Printf("Error deleting operation %v", err)
 		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		log.Printf("Error deleting operation nothing %v", err)
+		return ErrEmptyRow
 	}
 	if err := tx.Commit(ctx); err != nil {
 		log.Printf("Error commit transaction: %v\n", err)
@@ -695,7 +689,6 @@ func (db *Database) GetIncomeExpenseDynamics(ctx context.Context, articles []str
 
 	// Чтение данных
 	var dateTotalMoneys []DateTotalMoney
-	fmt.Println("Date\t\tDebit\t\tCredit")
 	for rows.Next() {
 		var dateTotalMoney DateTotalMoney
 		err := rows.Scan(&dateTotalMoney.Date, &dateTotalMoney.TotalDebit, &dateTotalMoney.TotalCredit)
@@ -703,7 +696,6 @@ func (db *Database) GetIncomeExpenseDynamics(ctx context.Context, articles []str
 			log.Printf("Failed to scan row: %v\n", err)
 			return nil, err
 		}
-		fmt.Printf("%s\t%.2f\t%.2f\n", dateTotalMoney.Date, dateTotalMoney.TotalDebit, dateTotalMoney.TotalCredit)
 		dateTotalMoneys = append(dateTotalMoneys, dateTotalMoney)
 	}
 
@@ -742,7 +734,6 @@ func (db *Database) GetFinancialPercentages(ctx context.Context, articles []stri
 
 	// Чтение данных
 	var dateFinancialPercentages []FinancialPercentage
-	fmt.Println("Date\t\tDebit\t\tCredit")
 	for rows.Next() {
 		var dateFinancialPercentage FinancialPercentage
 		err := rows.Scan(
@@ -756,13 +747,6 @@ func (db *Database) GetFinancialPercentages(ctx context.Context, articles []stri
 			log.Printf("Failed to scan row: %v\n", err)
 			return nil, err
 		}
-		fmt.Printf("%s\t%.2f\t%.2f\n%.2f\t%.2f\t",
-			dateFinancialPercentage.ArticleName,
-			dateFinancialPercentage.TotalDebit,
-			dateFinancialPercentage.TotalCredit,
-			dateFinancialPercentage.TotalProfit,
-			dateFinancialPercentage.TotalProc,
-		)
 		dateFinancialPercentages = append(dateFinancialPercentages, dateFinancialPercentage)
 	}
 
@@ -801,7 +785,6 @@ func (db *Database) GetTotalProfitDate(ctx context.Context, startDate, endDate s
 
 	// Чтение данных
 	var dateProfits []DateProfit
-	fmt.Println("Date\t\tDebit\t\tCredit")
 	for rows.Next() {
 		var dateProfit DateProfit
 		err := rows.Scan(&dateProfit.Date, &dateProfit.TotalProfit)
@@ -809,7 +792,6 @@ func (db *Database) GetTotalProfitDate(ctx context.Context, startDate, endDate s
 			log.Printf("Failed to scan row: %v\n", err)
 			return nil, err
 		}
-		fmt.Printf("%s\t%.2f\n", dateProfit.Date, dateProfit.TotalProfit)
 		dateProfits = append(dateProfits, dateProfit)
 	}
 

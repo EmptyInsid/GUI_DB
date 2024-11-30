@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"log"
+
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/theme"
 	"github.com/EmptyInsid/db_gui/internal/database"
@@ -16,7 +19,13 @@ func StartApp(db database.Service) {
 	w := a.NewWindow("Домашний бюджет")
 	w.CenterOnScreen()
 
-	gui.LoginMenu(w, db)
+	ic, err := fyne.LoadResourceFromPath("..\\..\\src\\icon.png")
+	if err != nil {
+		log.Print(err)
+	}
+	w.SetIcon(ic)
+
+	gui.LoginMenu(a, w, db)
 
 	// запуск приложения
 	w.Show()
