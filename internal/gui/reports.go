@@ -369,7 +369,7 @@ func SaveToPDFFirst(data []database.DateTotalMoney, filename string) error {
 			Right:  true,
 			Width:  1.0,
 		},
-		FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
+		FillColor: gopdf.RGBColor{R: 255, G: 0, B: 255},
 		TextColor: gopdf.RGBColor{R: 0, G: 0, B: 0},
 		FontSize:  10,
 	})

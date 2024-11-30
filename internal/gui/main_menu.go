@@ -123,14 +123,11 @@ func createAboutWindow(app fyne.App) fyne.Window {
 	// Оборачиваем текст в скролл
 	scroll := container.NewScroll(textLabel)
 
-	aboutContent := container.NewBorder(
+	aboutContent := container.NewVSplit(
 		widget.NewLabel(label),
 		scroll,
-		nil,
-		nil,
 	)
-
-	//allBox := container.NewStack(aboutContent)
+	aboutContent.SetOffset(0.2)
 
 	aboutWindow.Resize(fyne.NewSize(400, 300))
 	aboutWindow.SetContent(aboutContent)
